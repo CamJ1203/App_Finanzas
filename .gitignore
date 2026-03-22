@@ -1,0 +1,21 @@
+# Base de datos — nunca subir a GitHub
+finanzas.db
+test_finanzas.db
+*.db
+
+# Variables de entorno — contiene la clave secreta
+.env
+
+# Entorno virtual — muy pesado, no hace falta subir
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Streamlit local
+.streamlit/secrets.toml
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

@@ -89,6 +89,16 @@ textarea {
 </style>
 """, unsafe_allow_html=True)
 
+# PWA — permite añadir al menú del móvil
+st.markdown("""
+<link rel="manifest" href="/app/static/manifest.json">
+<link rel="apple-touch-icon" href="/app/static/logo-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mis Finanzas">
+<meta name="theme-color" content="#1e3a5f">
+""", unsafe_allow_html=True)
+
 
 # ─────────────────────────────────────────
 # DB + SESIÓN

@@ -39,14 +39,30 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+/* Ocultar barra superior de Streamlit (Deploy, GitHub, fork) */
+header[data-testid="stHeader"] {
+    display: none;
+}
+
+/* Ocultar botón de menú hamburguesa */
+#MainMenu {
+    display: none;
+}
+
+/* Ocultar footer con el logo de Streamlit */
+footer {
+    display: none;
+}
+
+/* Tabs sticky ajustado sin la barra superior */
 .stTabs [data-baseweb="tab-list"] {
     position: sticky;
-    top: 4.5rem;
+    top: 0.5rem;
     z-index: 100;
     background: var(--background-color);
     padding-bottom: 4px;
 }
-.block-container { padding-top: 3.5rem !important; }
+.block-container { padding-top: 1.5rem !important; }
 </style>
 """, unsafe_allow_html=True)
 

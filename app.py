@@ -39,22 +39,12 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-/* Ocultar barra superior de Streamlit (Deploy, GitHub, fork) */
-header[data-testid="stHeader"] {
-    display: none;
-}
+/* Ocultar barra superior de Streamlit */
+header[data-testid="stHeader"] { display: none; }
+#MainMenu { display: none; }
+footer { display: none; }
 
-/* Ocultar botón de menú hamburguesa */
-#MainMenu {
-    display: none;
-}
-
-/* Ocultar footer con el logo de Streamlit */
-footer {
-    display: none;
-}
-
-/* Tabs sticky ajustado sin la barra superior */
+/* Tabs sticky — sin barra superior ya no hay nada que las tape */
 .stTabs [data-baseweb="tab-list"] {
     position: sticky;
     top: 0.5rem;
@@ -63,6 +53,21 @@ footer {
     padding-bottom: 4px;
 }
 .block-container { padding-top: 1.5rem !important; }
+
+/* FIX MÓVIL — evitar que el teclado dispare reruns al escribir.
+   Desactiva autocorrect, autocomplete y autocapitalize en todos
+   los campos de texto para que el espacio no cause comportamientos raros */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+textarea {
+    -webkit-user-select: text !important;
+    user-select: text !important;
+    autocomplete: off;
+    autocorrect: off;
+    autocapitalize: off;
+    spellcheck: false;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -126,15 +131,16 @@ def fila_editable(item: dict, tipo: str, key_prefix: str):
 
     if st.session_state.get(ek):
         with st.form(f"fmed_{key_prefix}_{item['id']}"):
-            nc = st.text_input("Concepto", value=item.get("concepto", ""))
+            nc = st.text_input("Concepto", value=item.get("concepto", ""),
+                               autocomplete="off")
             nm = st.number_input("Monto (€)", value=float(item["monto"]), min_value=0.01)
             cg, cc = st.columns(2)
             if cg.form_submit_button("Guardar"):
                 tabla_map = {
-                    "ingreso":     "ingresos",
-                    "general":     "gastos_generales",
-                    "importante":  "gastos_importantes",
-                    "casa":        "gastos_casa",
+                    "ingreso":    "ingresos",
+                    "general":    "gastos_generales",
+                    "importante": "gastos_importantes",
+                    "casa":       "gastos_casa",
                 }
                 with get_db() as conn:
                     conn.execute(
@@ -152,6 +158,10 @@ def fila_editable(item: dict, tipo: str, key_prefix: str):
 # CATEGORÍAS
 # ─────────────────────────────────────────
 
+CATS_OCIO = [
+    "ropa", "comida callejera", "dulces", "entretenimiento",
+    "salidas", "suscripciones", "hobby", "otro"
+]
 
 CATS_CASA_DEFECTO = [
     "Arriendo", "Luz", "Agua", "Factura de agua",
@@ -171,7 +181,6 @@ with st.sidebar:
     st.caption(sesion["email"])
     st.divider()
 
-    # Selector de mes
     st.caption("Selecciona el mes activo")
     col_m, col_a = st.columns(2)
     mes_num  = col_m.selectbox("Mes", list(range(1, 13)),
@@ -215,7 +224,6 @@ with tab_res:
     st.header(f"Resumen — {mes_sel}")
     d = calcular_mes(sesion["user_id"], mes_sel)
 
-    # Estado del mes
     st.subheader("Estado del mes")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("💵 Ingresos",       f"€{d['ing_total']:,.2f}")
@@ -225,7 +233,6 @@ with tab_res:
 
     st.divider()
 
-    # Detalle de ingresos
     st.subheader("💵 Ingresos")
     c1, c2, c3 = st.columns(3)
     c1.metric("Total",  f"€{d['ing_total']:,.2f}")
@@ -234,7 +241,6 @@ with tab_res:
 
     st.divider()
 
-    # Plan del mes — previstos vs gastado real
     st.subheader("📋 Plan del mes")
     st.caption("Previstos configurados vs lo que has gastado en casa este mes.")
 
@@ -250,7 +256,6 @@ with tab_res:
                            "Previsto": p["cuota_mes"]})
 
     if filas_plan:
-        # Calcular gastado por categoría desde gastos de casa
         gastado_por_cat = {}
         for gc in d["gastos_casa_lista"]:
             partes = gc["concepto"].split(":", 1)
@@ -277,8 +282,8 @@ with tab_res:
         total_gastado_casa = sum(gastado_por_cat.values())
         diferencia_plan    = round(d["total_previstos"] - total_gastado_casa, 2)
         c1, c2 = st.columns(2)
-        c1.metric("Total previstos",    f"€{d['total_previstos']:,.2f}")
-        c2.metric("Gastado vs previsto", f"€{total_gastado_casa:,.2f}",
+        c1.metric("Total previstos",     f"€{d['total_previstos']:,.2f}")
+        c2.metric("Gastado vs previsto",  f"€{total_gastado_casa:,.2f}",
                   delta=f"€{diferencia_plan:.2f} restante" if diferencia_plan >= 0
                         else f"€{abs(diferencia_plan):.2f} excedido",
                   delta_color="normal" if diferencia_plan >= 0 else "inverse")
@@ -287,7 +292,6 @@ with tab_res:
 
     st.divider()
 
-    # Histórico anual
     st.subheader("📅 Histórico del año")
     hist = historico_anual(sesion["user_id"], int(anio_sel))
     if hist:
@@ -317,7 +321,7 @@ with tab_ing:
         st.error(f"🔒 El mes {mes_sel} está cerrado. Ve a 'Cierre' para desbloquearlo.")
     else:
         sub1, sub2, sub3, sub4 = st.tabs([
-            "💼 Ingresos", "🏠 Casa", "⚠️ Imprevisto", "🛒 Ocio"
+            "💼 Ingresos", "🛒 Ocio", "⚠️ Imprevisto", "🏠 Casa"
         ])
 
         # ── Ingresos ─────────────────────
@@ -329,7 +333,8 @@ with tab_ing:
                 f_ing  = c1.date_input("Fecha", value=hoy)
                 m_ing  = c2.number_input("Monto (€)", min_value=0.01,
                                           value=None, placeholder="ej: 1200.00", step=50.0)
-                co_ing = st.text_input("Concepto", placeholder="Ej: Sueldo marzo")
+                co_ing = st.text_input("Concepto", placeholder="Ej: Sueldo marzo",
+                                       autocomplete="off")
                 if st.form_submit_button("Guardar", use_container_width=True):
                     if m_ing is None:
                         st.error("Introduce un monto.")
@@ -343,71 +348,38 @@ with tab_ing:
                         st.success(f"Ingreso de €{m_ing:.2f} registrado.")
                         st.rerun()
 
-            # Vista previa de distribución tras ingresar
             d_prev = calcular_mes(sesion["user_id"], mes_sel)
             if d_prev["ing_total"] > 0:
                 st.divider()
                 st.caption("Vista previa de distribución:")
                 c1, c2, c3 = st.columns(3)
-                c1.metric("Remanente",
-                           f"€{d_prev['remanente']:.2f}")
+                c1.metric("Remanente", f"€{d_prev['remanente']:.2f}")
                 c2.metric(f"Ahorro ({int(d_prev['pct_ahorro']*100)}%)",
                            f"€{d_prev['ahorro_previsto']:.2f}")
                 c3.metric(f"Ocio ({int(d_prev['pct_ocio']*100)}%)",
                            f"€{d_prev['ocio_previsto']:.2f}")
-        # ── Casa ─────────────────────────
-        with sub2:
-            st.subheader("Gasto de casa")
-            st.caption("Arriendo, luz, agua, internet... Elige la categoría del previsto.")
-
-            # Categorías = fijos + estimaciones configurados, o lista por defecto
-            fijos_cfg  = obtener_gastos_fijos(sesion["user_id"])
-            estims_cfg = obtener_estimaciones(sesion["user_id"])
-            cats_casa  = [f["concepto"] for f in fijos_cfg] + \
-                         [e["concepto"] for e in estims_cfg] + ["Otro"]
-            if len(cats_casa) == 1:  # solo "Otro" → no hay nada configurado
-                cats_casa = CATS_CASA_DEFECTO
-
-            with st.form("frm_cas"):
-                c1, c2 = st.columns(2)
-                f_ca   = c1.date_input("Fecha", value=hoy, key="ca_f")
-                m_ca   = c2.number_input("Monto (€)", min_value=0.01,
-                                          value=None, placeholder="ej: 400.00", step=10.0, key="ca_m")
-                co_ca  = st.text_input("Concepto", placeholder="Ej: Factura luz", key="ca_c")
-                cat_ca = st.selectbox("Categoría prevista", cats_casa, key="ca_cat")
-                if st.form_submit_button("Guardar", use_container_width=True):
-                    if m_ca is None:
-                        st.error("Introduce un monto.")
-                    elif not co_ca:
-                        st.error("Escribe un concepto.")
-                    else:
-                        with get_db() as conn:
-                            conn.execute(
-                                "INSERT INTO gastos_casa (user_id, fecha, concepto, monto, recurrente)"
-                                " VALUES (?,?,?,?,0)",
-                                (sesion["user_id"], str(f_ca), f"{cat_ca}: {co_ca}", m_ca)
-                            )
-                        st.success(f"Gasto de casa registrado en '{cat_ca}'.")
-                        st.rerun()
 
         # ── Ocio ─────────────────────────
-        with sub3:
+        with sub2:
             st.subheader("Gasto de ocio")
             st.caption("Ropa, dulces, comida callejera, entretenimiento, salidas...")
             with st.form("frm_ocio"):
                 c1, c2 = st.columns(2)
                 f_oc   = c1.date_input("Fecha", value=hoy, key="oc_f")
                 m_oc   = c2.number_input("Monto (€)", min_value=0.01,
-                                          value=None, placeholder="ej: 25.00", step=5.0, key="oc_m")
-                co_oc  = st.text_input("Concepto", placeholder="Ej: Camiseta", key="oc_c")
+                                          value=None, placeholder="ej: 25.00",
+                                          step=5.0, key="oc_m")
+                co_oc  = st.text_input("Concepto", placeholder="Ej: Camiseta",
+                                       key="oc_c", autocomplete="off")
+                cat_oc = st.selectbox("Categoría", CATS_OCIO, key="oc_cat")
                 if st.form_submit_button("Guardar", use_container_width=True):
                     if m_oc is None:
                         st.error("Introduce un monto.")
                     elif not co_oc:
                         st.error("Escribe un concepto.")
                     else:
-                        guardar_gasto_general(sesion["user_id"], str(f_oc), co_oc, m_oc)
-                        d_post = calcular_mes(sesion["user_id"], mes_sel)
+                        guardar_gasto_general(sesion["user_id"], str(f_oc), co_oc, m_oc, cat_oc)
+                        d_post    = calcular_mes(sesion["user_id"], mes_sel)
                         ocio_rest = d_post["ocio_disponible"]
                         if ocio_rest < 0:
                             st.warning(f"⚠️ Pasaste el límite de ocio. Disponible: €{ocio_rest:.2f}")
@@ -415,16 +387,18 @@ with tab_ing:
                             st.success(f"Registrado. Ocio restante: €{ocio_rest:.2f}")
                         st.rerun()
 
-        # ── Imprevisto importante ─────────
-        with sub4:
+        # ── Imprevisto ────────────────────
+        with sub3:
             st.subheader("Gasto imprevisto importante")
             st.caption("Sale del remanente, reduciendo ahorro y ocio proporcionalmente.")
             with st.form("frm_imp"):
                 c1, c2 = st.columns(2)
                 f_im   = c1.date_input("Fecha", value=hoy, key="im_f")
                 m_im   = c2.number_input("Monto (€)", min_value=0.01,
-                                          value=None, placeholder="ej: 50.00", step=10.0, key="im_m")
-                co_im  = st.text_input("Concepto", placeholder="Ej: Médico urgente", key="im_c")
+                                          value=None, placeholder="ej: 50.00",
+                                          step=10.0, key="im_m")
+                co_im  = st.text_input("Concepto", placeholder="Ej: Médico urgente",
+                                       key="im_c", autocomplete="off")
                 if st.form_submit_button("Guardar", use_container_width=True):
                     if m_im is None:
                         st.error("Introduce un monto.")
@@ -437,7 +411,43 @@ with tab_ing:
                         st.success(f"Registrado. Reduce ahorro €{red_a:.2f} · ocio €{red_o:.2f}")
                         st.rerun()
 
+        # ── Casa ─────────────────────────
+        with sub4:
+            st.subheader("Gasto de casa")
+            st.caption("Arriendo, luz, agua, internet... Elige la categoría del previsto.")
 
+            fijos_cfg  = obtener_gastos_fijos(sesion["user_id"])
+            estims_cfg = obtener_estimaciones(sesion["user_id"])
+            cats_casa  = ([f["concepto"] for f in fijos_cfg] +
+                          [e["concepto"] for e in estims_cfg] + ["Otro"])
+            if len(cats_casa) == 1:
+                cats_casa = CATS_CASA_DEFECTO
+
+            with st.form("frm_cas"):
+                c1, c2 = st.columns(2)
+                f_ca   = c1.date_input("Fecha", value=hoy, key="ca_f")
+                m_ca   = c2.number_input("Monto (€)", min_value=0.01,
+                                          value=None, placeholder="ej: 400.00",
+                                          step=10.0, key="ca_m")
+                co_ca  = st.text_input("Concepto", placeholder="Ej: Factura luz",
+                                       key="ca_c", autocomplete="off")
+                cat_ca = st.selectbox("Categoría prevista", cats_casa, key="ca_cat")
+                if st.form_submit_button("Guardar", use_container_width=True):
+                    if m_ca is None:
+                        st.error("Introduce un monto.")
+                    elif not co_ca:
+                        st.error("Escribe un concepto.")
+                    else:
+                        with get_db() as conn:
+                            conn.execute(
+                                "INSERT INTO gastos_casa"
+                                " (user_id, fecha, concepto, monto, recurrente)"
+                                " VALUES (?,?,?,?,0)",
+                                (sesion["user_id"], str(f_ca),
+                                 f"{cat_ca}: {co_ca}", m_ca)
+                            )
+                        st.success(f"Gasto de casa registrado en '{cat_ca}'.")
+                        st.rerun()
 
 
 # ══════════════════════════════════════════
@@ -481,7 +491,8 @@ with tab_his:
             st.caption("🏠 Gastos de casa")
             for it in cas:
                 fila_editable(
-                    {**it, "categoria": it["concepto"].split(":")[0] if ":" in it["concepto"] else "—"},
+                    {**it, "categoria": it["concepto"].split(":")[0]
+                     if ":" in it["concepto"] else "—"},
                     "casa", "ca"
                 )
             st.markdown(f"**Total casa: €{sum(i['monto'] for i in cas):.2f}**")
@@ -502,7 +513,6 @@ with tab_his:
         for it in obtener_gastos_casa(sesion["user_id"], mes_sel):
             todos.append({"fecha": it["fecha"], "tipo": "Casa",
                           "concepto": it["concepto"], "monto": -it["monto"]})
-
         if todos:
             st.dataframe(
                 sorted(todos, key=lambda x: x["fecha"]),
@@ -550,8 +560,8 @@ with tab_cie:
 
         st.divider()
         c1, c2 = st.columns(2)
-        c1.metric("💾 Ahorro mensual",      f"€{d_cie['ahorro_real']:.2f}")
-        c2.metric("🎉 Ocio disponible rest.",f"€{d_cie['ocio_disponible']:.2f}")
+        c1.metric("💾 Ahorro mensual",       f"€{d_cie['ahorro_real']:.2f}")
+        c2.metric("🎉 Ocio disponible rest.", f"€{d_cie['ocio_disponible']:.2f}")
 
         st.divider()
         st.subheader("Sobrante de gastos previstos")
@@ -570,7 +580,6 @@ with tab_cie:
                 ahorro_extra, ocio_extra = 0.0, sobrante
             else:
                 ahorro_extra = ocio_extra = round(sobrante / 2, 2)
-
             st.caption(
                 f"Ahorro final: €{d_cie['ahorro_real'] + ahorro_extra:.2f} · "
                 f"Ocio final: €{d_cie['ocio_disponible'] + ocio_extra:.2f}"
@@ -595,80 +604,10 @@ with tab_cfg:
     st.header("Configuración")
 
     cfg1, cfg2, cfg3, cfg4 = st.tabs([
-         "🏠 Gastos fijos", "🛒 Estimaciones", "📅 Provisiones", "💰 % Ahorro"
+        "💰 % Ahorro", "🏠 Gastos fijos", "🛒 Estimaciones", "📅 Provisiones"
     ])
 
-
     with cfg1:
-        st.subheader("Gastos fijos mensuales")
-        st.caption("Arriendo, servicios... se restan cada mes antes de calcular el ahorro.")
-        for f in obtener_gastos_fijos(sesion["user_id"]):
-            c1, c2, c3 = st.columns([5, 2, 1])
-            c1.write(f["concepto"])
-            c2.write(f"€{f['monto']:.2f}/mes")
-            if c3.button("🗑️", key=f"df_{f['id']}"):
-                desactivar_gasto_fijo(sesion["user_id"], f["id"])
-                st.rerun()
-        with st.form("frm_fijo"):
-            c1, c2 = st.columns(2)
-            cn_f   = c1.text_input("Concepto", placeholder="Arriendo")
-            mo_f   = c2.number_input("Monto (€)", min_value=0.01,
-                                      value=None, placeholder="ej: 600.00", step=10.0)
-            if st.form_submit_button("Agregar", use_container_width=True):
-                if mo_f is None:
-                    st.error("Introduce un monto.")
-                elif cn_f:
-                    guardar_gasto_fijo(sesion["user_id"], cn_f, mo_f)
-                    st.rerun()
-
-    with cfg2:
-        st.subheader("Estimaciones mensuales")
-        st.caption("Comida, gasolina... promedios variables que reservas cada mes.")
-        for e in obtener_estimaciones(sesion["user_id"]):
-            c1, c2, c3 = st.columns([5, 2, 1])
-            c1.write(e["concepto"])
-            c2.write(f"€{e['promedio']:.2f}/mes")
-            if c3.button("🗑️", key=f"de_{e['id']}"):
-                desactivar_estimacion(sesion["user_id"], e["id"])
-                st.rerun()
-        with st.form("frm_estim"):
-            c1, c2 = st.columns(2)
-            cn_e   = c1.text_input("Concepto", placeholder="Comida")
-            mo_e   = c2.number_input("Promedio (€)", min_value=0.01,
-                                      value=None, placeholder="ej: 200.00", step=10.0)
-            if st.form_submit_button("Agregar", use_container_width=True):
-                if mo_e is None:
-                    st.error("Introduce un monto.")
-                elif cn_e:
-                    guardar_estimacion(sesion["user_id"], cn_e, mo_e)
-                    st.rerun()
-
-    with cfg3:
-        st.subheader("Provisiones anuales")
-        st.caption("Seguro, ITV... se divide entre 12 y se reserva cada mes.")
-        for p in obtener_provisiones(sesion["user_id"]):
-            c1, c2, c3, c4 = st.columns([3, 2, 2, 1])
-            c1.write(p["concepto"])
-            c2.write(f"€{p['monto_anual']:.2f}/año")
-            c3.write(f"€{p['cuota_mes']:.2f}/mes")
-            if c4.button("🗑️", key=f"dp_{p['id']}"):
-                desactivar_provision(sesion["user_id"], p["id"])
-                st.rerun()
-        with st.form("frm_prov"):
-            c1, c2 = st.columns(2)
-            cn_p   = c1.text_input("Concepto", placeholder="Seguro carro")
-            mo_an  = c2.number_input("Monto anual (€)", min_value=0.01,
-                                      value=None, placeholder="ej: 600.00", step=50.0)
-            if mo_an:
-                st.caption(f"Reserva mensual: **€{mo_an / 12:.2f}**")
-            if st.form_submit_button("Agregar", use_container_width=True):
-                if mo_an is None:
-                    st.error("Introduce un monto.")
-                elif cn_p:
-                    guardar_provision(sesion["user_id"], cn_p, mo_an)
-                    st.rerun()
-
-    with cfg4:
         st.subheader("Distribución del remanente")
         st.caption("Se aplica sobre lo que sobra después de restar los gastos previstos.")
         pct_actual = int(sesion["pct_ahorro"] * 100)
@@ -682,3 +621,75 @@ with tab_cfg:
                 st.session_state["pct_ocio"]   = round(1 - nuevo_pct / 100, 2)
                 st.success("Porcentaje actualizado.")
                 st.rerun()
+
+    with cfg2:
+        st.subheader("Gastos fijos mensuales")
+        st.caption("Arriendo, servicios... se restan cada mes antes de calcular el ahorro.")
+        for f in obtener_gastos_fijos(sesion["user_id"]):
+            c1, c2, c3 = st.columns([5, 2, 1])
+            c1.write(f["concepto"])
+            c2.write(f"€{f['monto']:.2f}/mes")
+            if c3.button("🗑️", key=f"df_{f['id']}"):
+                desactivar_gasto_fijo(sesion["user_id"], f["id"])
+                st.rerun()
+        with st.form("frm_fijo"):
+            c1, c2 = st.columns(2)
+            cn_f   = c1.text_input("Concepto", placeholder="Arriendo",
+                                    autocomplete="off")
+            mo_f   = c2.number_input("Monto (€)", min_value=0.01,
+                                      value=None, placeholder="ej: 600.00", step=10.0)
+            if st.form_submit_button("Agregar", use_container_width=True):
+                if mo_f is None:
+                    st.error("Introduce un monto.")
+                elif cn_f:
+                    guardar_gasto_fijo(sesion["user_id"], cn_f, mo_f)
+                    st.rerun()
+
+    with cfg3:
+        st.subheader("Estimaciones mensuales")
+        st.caption("Comida, gasolina... promedios variables que reservas cada mes.")
+        for e in obtener_estimaciones(sesion["user_id"]):
+            c1, c2, c3 = st.columns([5, 2, 1])
+            c1.write(e["concepto"])
+            c2.write(f"€{e['promedio']:.2f}/mes")
+            if c3.button("🗑️", key=f"de_{e['id']}"):
+                desactivar_estimacion(sesion["user_id"], e["id"])
+                st.rerun()
+        with st.form("frm_estim"):
+            c1, c2 = st.columns(2)
+            cn_e   = c1.text_input("Concepto", placeholder="Comida",
+                                    autocomplete="off")
+            mo_e   = c2.number_input("Promedio (€)", min_value=0.01,
+                                      value=None, placeholder="ej: 200.00", step=10.0)
+            if st.form_submit_button("Agregar", use_container_width=True):
+                if mo_e is None:
+                    st.error("Introduce un monto.")
+                elif cn_e:
+                    guardar_estimacion(sesion["user_id"], cn_e, mo_e)
+                    st.rerun()
+
+    with cfg4:
+        st.subheader("Provisiones anuales")
+        st.caption("Seguro, ITV... se divide entre 12 y se reserva cada mes.")
+        for p in obtener_provisiones(sesion["user_id"]):
+            c1, c2, c3, c4 = st.columns([3, 2, 2, 1])
+            c1.write(p["concepto"])
+            c2.write(f"€{p['monto_anual']:.2f}/año")
+            c3.write(f"€{p['cuota_mes']:.2f}/mes")
+            if c4.button("🗑️", key=f"dp_{p['id']}"):
+                desactivar_provision(sesion["user_id"], p["id"])
+                st.rerun()
+        with st.form("frm_prov"):
+            c1, c2 = st.columns(2)
+            cn_p   = c1.text_input("Concepto", placeholder="Seguro carro",
+                                    autocomplete="off")
+            mo_an  = c2.number_input("Monto anual (€)", min_value=0.01,
+                                      value=None, placeholder="ej: 600.00", step=50.0)
+            if mo_an:
+                st.caption(f"Reserva mensual: **€{mo_an / 12:.2f}**")
+            if st.form_submit_button("Agregar", use_container_width=True):
+                if mo_an is None:
+                    st.error("Introduce un monto.")
+                elif cn_p:
+                    guardar_provision(sesion["user_id"], cn_p, mo_an)
+                    st.rerun()

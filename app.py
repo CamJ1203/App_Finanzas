@@ -39,44 +39,37 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-/* Ocultar header de Streamlit EXCEPTO el botón del sidebar */
+/* Ocultar solo los botones de GitHub/Deploy/Fork del header
+   SIN ocultar el header completo — así el botón del sidebar
+   sigue funcionando en móvil */
 header[data-testid="stHeader"] {
-    background: transparent;
-    height: 0;
-    min-height: 0;
+    background-color: transparent !important;
+    border-bottom: none !important;
 }
 
-/* Ocultar los elementos del header que no queremos */
-header[data-testid="stHeader"] > * {
-    display: none;
-}
-
-/* Mostrar SOLO el botón de abrir sidebar (importante para móvil) */
-header[data-testid="stHeader"] button[kind="header"],
-[data-testid="collapsedControl"] {
-    display: flex !important;
-    position: fixed;
-    top: 0.5rem;
-    left: 0.5rem;
-    z-index: 999;
-    background: var(--background-color);
-    border-radius: 6px;
-    padding: 4px;
+/* Ocultar botones de deploy y github dentro del header */
+header[data-testid="stHeader"] a,
+header[data-testid="stHeader"] button:not([data-testid="baseButton-header"]) {
+    display: none !important;
 }
 
 /* Ocultar menú hamburguesa y footer */
 #MainMenu { display: none; }
 footer { display: none; }
 
+/* Ocultar botón Manage App */
+[data-testid="manage-app-button"] { display: none; }
+.stAppDeployButton { display: none; }
+
 /* Tabs sticky */
 .stTabs [data-baseweb="tab-list"] {
     position: sticky;
-    top: 2.5rem;
+    top: 3.5rem;
     z-index: 100;
     background: var(--background-color);
     padding-bottom: 4px;
 }
-.block-container { padding-top: 2rem !important; }
+.block-container { padding-top: 1rem !important; }
 
 /* FIX MÓVIL — teclado */
 input[type="text"],
@@ -87,16 +80,6 @@ textarea {
     user-select: text !important;
 }
 </style>
-""", unsafe_allow_html=True)
-
-# PWA — permite añadir al menú del móvil
-st.markdown("""
-<link rel="manifest" href="/app/static/manifest.json">
-<link rel="apple-touch-icon" href="/app/static/logo-192.png">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Mis Finanzas">
-<meta name="theme-color" content="#1e3a5f">
 """, unsafe_allow_html=True)
 
 

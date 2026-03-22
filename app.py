@@ -39,34 +39,52 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-/* Ocultar barra superior de Streamlit */
-header[data-testid="stHeader"] { display: none; }
+/* Ocultar header de Streamlit EXCEPTO el botón del sidebar */
+header[data-testid="stHeader"] {
+    background: transparent;
+    height: 0;
+    min-height: 0;
+}
+
+/* Ocultar los elementos del header que no queremos */
+header[data-testid="stHeader"] > * {
+    display: none;
+}
+
+/* Mostrar SOLO el botón de abrir sidebar (importante para móvil) */
+header[data-testid="stHeader"] button[kind="header"],
+[data-testid="collapsedControl"] {
+    display: flex !important;
+    position: fixed;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 999;
+    background: var(--background-color);
+    border-radius: 6px;
+    padding: 4px;
+}
+
+/* Ocultar menú hamburguesa y footer */
 #MainMenu { display: none; }
 footer { display: none; }
 
-/* Tabs sticky — sin barra superior ya no hay nada que las tape */
+/* Tabs sticky */
 .stTabs [data-baseweb="tab-list"] {
     position: sticky;
-    top: 0.5rem;
+    top: 2.5rem;
     z-index: 100;
     background: var(--background-color);
     padding-bottom: 4px;
 }
-.block-container { padding-top: 1.5rem !important; }
+.block-container { padding-top: 2rem !important; }
 
-/* FIX MÓVIL — evitar que el teclado dispare reruns al escribir.
-   Desactiva autocorrect, autocomplete y autocapitalize en todos
-   los campos de texto para que el espacio no cause comportamientos raros */
+/* FIX MÓVIL — teclado */
 input[type="text"],
 input[type="email"],
 input[type="password"],
 textarea {
     -webkit-user-select: text !important;
     user-select: text !important;
-    autocomplete: off;
-    autocorrect: off;
-    autocapitalize: off;
-    spellcheck: false;
 }
 </style>
 """, unsafe_allow_html=True)

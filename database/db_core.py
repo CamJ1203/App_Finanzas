@@ -6,7 +6,9 @@ from urllib.parse import quote
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from psycopg2.pool import SimpleConnectionPool
 from dotenv import load_dotenv
+import streamlit as st
 
 load_dotenv()
 
@@ -14,6 +16,20 @@ DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 FORCE_SQLITE = os.getenv("FORCE_SQLITE", "").strip().lower() in ("1", "true", "yes", "on")
 USE_POSTGRES = bool(DATABASE_URL) and not FORCE_SQLITE
 DB_PATH = "finanzas.db"
+
+@st.cache_resource
+def _get_postgres_pool(dsn: str) -> SimpleConnectionPool:
+    """Pool de conexiones Postgres cacheado y reutilizable entre reruns."""
+    return SimpleConnectionPool(1, 10, dsn)
+
+
+@st.cache_resource
+def _get_sqlite_connection():
+    """Conexión SQLite cacheada para reducir el coste de reapertura."""
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
 
 
 def _normalize_database_url(url: str) -> str:
@@ -105,26 +121,27 @@ class PostgresConnection:
 @contextmanager
 def get_db():
     """
-    Abre la conexión a SQLite local o a Postgres/Supabase.
+    Abre la conexión a SQLite local o una conexión Postgres desde pool.
 
-    - Si la variable de entorno DATABASE_URL está configurada y FORCE_SQLITE no está activado,
-      usa esa conexión Postgres.
-    - Si no, usa el archivo local finanzas.db.
+    Usa @st.cache_resource para mantener el pool / la conexión viva entre reruns.
+    En caso de fallo de conexión remota, intenta limpiar el recurso cacheado y reconectar.
     """
     if USE_POSTGRES:
         dsn = _normalize_database_url(DATABASE_URL)
         try:
-            conn = psycopg2.connect(dsn, sslmode="require", connect_timeout=10)
-        except Exception as exc:
-            print("[db_core] Postgres connect failed:", repr(exc), file=sys.stderr)
-            raise RuntimeError(
-                "Fallo de conexión a Postgres. Verifica DATABASE_URL en los secretos y que el servidor permita SSL."
-            ) from exc
+            pool = _get_postgres_pool(dsn)
+            conn = pool.getconn()
+        except (psycopg2.OperationalError, psycopg2.InterfaceError, Exception) as exc:
+            # Reconectar si la sesión remota caducó o el pool quedó inválido.
+            try:
+                _get_postgres_pool.clear()
+            except Exception:
+                pass
+            pool = _get_postgres_pool(dsn)
+            conn = pool.getconn()
         db = PostgresConnection(conn)
     else:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON")
+        conn = _get_sqlite_connection()
         db = conn
 
     try:
@@ -134,13 +151,17 @@ def get_db():
         db.rollback()
         raise
     finally:
-        db.close()
+        if USE_POSTGRES:
+            db._cursor.close()
+            pool.putconn(conn)
+        # SQLite usa conexión cacheada; no se cierra aquí.
 
 
 # ─────────────────────────────────────────
 # CREAR TABLAS
 # ─────────────────────────────────────────
 
+@st.cache_data(ttl=600)
 def crear_tablas():
     with get_db() as conn:
         conn.execute(f"""
@@ -247,6 +268,15 @@ def crear_tablas():
             )
         """)
 
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_ingresos_user_fecha ON ingresos(user_id, fecha)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_gastos_generales_user_fecha ON gastos_generales(user_id, fecha)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_gastos_casa_user_fecha ON gastos_casa(user_id, fecha)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_gastos_importantes_user_fecha ON gastos_importantes(user_id, fecha)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_config_gastos_fijos_user_activo ON config_gastos_fijos(user_id, activo)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_config_estimaciones_user_activo ON config_estimaciones(user_id, activo)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_config_provisiones_user_activo ON config_provisiones(user_id, activo)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_cierre_mes_user_mes ON cierre_mes(user_id, mes)")
+
 
 
 
@@ -262,11 +292,13 @@ def crear_usuario(nombre, email, password_hash):
                 "INSERT INTO usuarios (nombre, email, password) VALUES (?, ?, ?)",
                 (nombre, email, password_hash)
             )
+        st.cache_data.clear()
         return True
     except (sqlite3.IntegrityError, psycopg2.IntegrityError):
         return False
 
 
+@st.cache_data(ttl=600)
 def obtener_usuario(email):
     """Devuelve la fila como dict, o None si no existe."""
     with get_db() as conn:
@@ -280,6 +312,7 @@ def obtener_usuario(email):
 # PORCENTAJE DE AHORRO
 # ─────────────────────────────────────────
 
+@st.cache_data(ttl=600)
 def obtener_pct_ahorro(user_id):
     """Devuelve (pct_ahorro, pct_ocio). Ej: (0.70, 0.30)"""
     with get_db() as conn:
@@ -300,4 +333,5 @@ def actualizar_pct_ahorro(user_id, pct_ahorro):
             "UPDATE usuarios SET pct_ahorro = ? WHERE id = ?",
             (round(pct_ahorro, 2), user_id)
         )
+    st.cache_data.clear()
     return True

@@ -104,6 +104,7 @@ def _iniciar_sesion(usuario: dict):
     st.session_state["pct_ahorro"] = pct_ahorro
     st.session_state["pct_ocio"]   = pct_ocio
 
+@st.cache_data(ttl=600)
 def _obtener_usuario_por_id(user_id: int) -> dict | None:
     with get_db() as conn:
         fila = conn.execute(

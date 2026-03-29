@@ -1,3 +1,4 @@
+import streamlit as st
 from .db_core import get_db
 
 # ─────────────────────────────────────────
@@ -14,7 +15,9 @@ def guardar_gasto_fijo(user_id, concepto, monto):
                 monto  = excluded.monto,
                 activo = excluded.activo
         """, (user_id, concepto, monto, True))
+    st.cache_data.clear()
 
+@st.cache_data(ttl=600)  # Cachea los gastos fijos hasta que haya cambios en configuración
 def obtener_gastos_fijos(user_id):
     with get_db() as conn:
         filas = conn.execute(
@@ -29,6 +32,7 @@ def desactivar_gasto_fijo(user_id, id):
             "UPDATE config_gastos_fijos SET activo = ? WHERE id = ? AND user_id = ?",
             (False, id, user_id)
         )
+    st.cache_data.clear()
 
 
 # ─────────────────────────────────────────
@@ -45,7 +49,9 @@ def guardar_estimacion(user_id, concepto, promedio):
                 promedio = excluded.promedio,
                 activo   = excluded.activo
         """, (user_id, concepto, promedio, True))
+    st.cache_data.clear()
 
+@st.cache_data(ttl=600)  # Cachea las estimaciones hasta la próxima mutación
 def obtener_estimaciones(user_id):
     with get_db() as conn:
         filas = conn.execute(
@@ -60,6 +66,7 @@ def desactivar_estimacion(user_id, id):
             "UPDATE config_estimaciones SET activo = ? WHERE id = ? AND user_id = ?",
             (False, id, user_id)
         )
+    st.cache_data.clear()
 
 
 # ─────────────────────────────────────────
@@ -76,7 +83,9 @@ def guardar_provision(user_id, concepto, monto_anual):
                 monto_anual = excluded.monto_anual,
                 activo      = excluded.activo
         """, (user_id, concepto, monto_anual, True))
+    st.cache_data.clear()
 
+@st.cache_data(ttl=600)  # Cachea las provisiones anuales para uso en cálculo mensual
 def obtener_provisiones(user_id):
     with get_db() as conn:
         filas = conn.execute(
@@ -96,3 +105,4 @@ def desactivar_provision(user_id, id):
             "UPDATE config_provisiones SET activo = ? WHERE id = ? AND user_id = ?",
             (False, id, user_id)
         )
+    st.cache_data.clear()

@@ -22,6 +22,7 @@ def _normalize_database_url(url: str) -> str:
     scheme, rest = url.split("://", 1)
     if scheme not in ("postgresql", "postgres"):
         return url
+    scheme = "postgresql"
 
     if "@" not in rest:
         return url
@@ -103,7 +104,13 @@ def get_db():
     - Si no, usa el archivo local finanzas.db.
     """
     if USE_POSTGRES:
-        conn = psycopg2.connect(_normalize_database_url(DATABASE_URL))
+        dsn = _normalize_database_url(DATABASE_URL)
+        try:
+            conn = psycopg2.connect(dsn, sslmode="require")
+        except Exception as exc:
+            raise RuntimeError(
+                "Fallo de conexión a Postgres. Verifica DATABASE_URL en los secretos y que el servidor permita SSL."
+            ) from exc
         db = PostgresConnection(conn)
     else:
         conn = sqlite3.connect(DB_PATH)

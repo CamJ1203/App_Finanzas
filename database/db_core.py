@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import sys
 from contextlib import contextmanager
 from urllib.parse import quote
 
@@ -113,8 +114,9 @@ def get_db():
     if USE_POSTGRES:
         dsn = _normalize_database_url(DATABASE_URL)
         try:
-            conn = psycopg2.connect(dsn, sslmode="require")
+            conn = psycopg2.connect(dsn, sslmode="require", connect_timeout=10)
         except Exception as exc:
+            print("[db_core] Postgres connect failed:", repr(exc), file=sys.stderr)
             raise RuntimeError(
                 "Fallo de conexión a Postgres. Verifica DATABASE_URL en los secretos y que el servidor permita SSL."
             ) from exc

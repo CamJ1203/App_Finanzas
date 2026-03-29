@@ -10,7 +10,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
-USE_POSTGRES = bool(DATABASE_URL)
+FORCE_SQLITE = os.getenv("FORCE_SQLITE", "").strip().lower() in ("1", "true", "yes", "on")
+USE_POSTGRES = bool(DATABASE_URL) and not FORCE_SQLITE
 DB_PATH = "finanzas.db"
 
 
@@ -90,7 +91,7 @@ def get_db():
     """
     Abre la conexión a SQLite local o a Postgres/Supabase.
 
-    - Si la variable de entorno DATABASE_URL está configurada,
+    - Si la variable de entorno DATABASE_URL está configurada y FORCE_SQLITE no está activado,
       usa esa conexión Postgres.
     - Si no, usa el archivo local finanzas.db.
     """

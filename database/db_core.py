@@ -36,6 +36,13 @@ def _normalize_database_url(url: str) -> str:
 
     user = quote(user, safe="%")
     password = quote(password, safe="%")
+
+    if "sslmode=" not in host_part.lower():
+        if "?" in host_part:
+            host_part += "&sslmode=require"
+        else:
+            host_part += "?sslmode=require"
+
     return f"{scheme}://{user}:{password}@{host_part}"
 
 

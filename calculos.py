@@ -3,12 +3,12 @@ calculos.py — Lógica financiera de la app
 
 Filosofía:
     INGRESOS (100%)
-    − Gastos previstos (fijos + estimaciones + provisiones/12)
+     Gastos previstos (fijos + estimaciones + provisiones/12)
     = REMANENTE
-        × pct_ahorro → Ahorro protegido
-        × pct_ocio   → Ocio disponible
+         pct_ahorro -> Ahorro protegido
+         pct_ocio   -> Ocio disponible
 
-    Gastos imprevistos → reducen remanente, ahorro y ocio proporcionalmente
+    Gastos imprevistos → reducen  ahorro
     Gastos de ocio     → reducen el ocio disponible
     Sobrante al cierre → usuario elige: ahorro o ocio
 """
@@ -62,30 +62,29 @@ def calcular_mes(user_id: int, mes: str) -> dict:
     fijos, estimacs, provisiones, total_previstos = _config_previstos(user_id)
 
     # Remanente
-    remanente = round(max(0, ing_total - total_previstos), 2)
+    #remanente = round(max(0, ing_total - total_previstos), 2)
+    remanente = round(int(ing_total - total_previstos), 2)
 
     # Split ahorro / ocio sobre el remanente
     pct_ahorro, pct_ocio = obtener_pct_ahorro(user_id)
     ahorro_previsto = round(remanente * pct_ahorro, 2)
     ocio_previsto   = round(remanente * pct_ocio,   2)
 
-    # Imprevistos — reducen ahorro y ocio proporcionalmente
+    # Imprevistos y gastos casa — reducen ahorro y ocio proporcionalmente
     gastos_imp_lista  = obtener_gastos_importantes(user_id, mes)
+    gastos_casa_lista  = obtener_gastos_casa(user_id, mes)
+    total_casa_gastado = round(sum(g["monto"] for g in gastos_casa_lista), 2)
     total_imprevistos = round(sum(g["monto"] for g in gastos_imp_lista), 2)
     reduccion_ahorro  = round(total_imprevistos * pct_ahorro, 2)
     reduccion_ocio    = round(total_imprevistos * pct_ocio,   2)
 
-    ahorro_real = round(ahorro_previsto - reduccion_ahorro, 2)
-    ocio_base   = round(ocio_previsto   - reduccion_ocio,   2)
+    ahorro_real = round(((ing_total - total_casa_gastado) * pct_ahorro) - total_imprevistos, 2)
+    ocio_base   = round(((ing_total - total_casa_gastado) * pct_ocio), 2)
 
     # Gastos de ocio reales
     gastos_ocio_lista  = obtener_gastos_generales(user_id, mes)
     total_ocio_gastado = round(sum(g["monto"] for g in gastos_ocio_lista), 2)
     ocio_disponible    = round(ocio_base - total_ocio_gastado, 2)
-
-    # Gastos de casa reales
-    gastos_casa_lista  = obtener_gastos_casa(user_id, mes)
-    total_casa_gastado = round(sum(g["monto"] for g in gastos_casa_lista), 2)
 
     # Sobrante de previstos = lo previsto menos lo realmente gastado en casa
     sobrante_previstos = round(total_previstos - total_casa_gastado, 2)
@@ -142,46 +141,47 @@ def _meses_con_ingresos(user_id: int) -> list:
 def _ahorro_total_acumulado(user_id: int) -> float:
     """
     Suma el ahorro_real de todos los meses con ingresos.
-    ahorro_real = (remanente × pct_ahorro) − (imprevistos × pct_ahorro)
+    Usa la misma fórmula que calcular_mes():
+        ahorro_real = (ingresos - gastos_casa) * pct_ahorro - imprevistos
     """
     meses = _meses_con_ingresos(user_id)
     if not meses:
         return 0.0
 
-    _, _, _, total_prev = _config_previstos(user_id)
     pct_a, _            = obtener_pct_ahorro(user_id)
 
     acumulado = 0.0
     for mes in meses:
-        ing    = total_ingresos(user_id, mes)
-        rem    = max(0, ing - total_prev)
-        imp    = total_gastos_importantes(user_id, mes)
-        acumulado += round((rem - imp) * pct_a, 2)
-
+        ing        = total_ingresos(user_id, mes)
+        casa       = round(sum(g["monto"] for g in obtener_gastos_casa(user_id, mes)), 2)
+        imp        = total_gastos_importantes(user_id, mes)
+        ahorro_mes = round(((ing - casa) * pct_a) - imp, 2)
+        acumulado += ahorro_mes
+ 
     return round(acumulado, 2)
 
 
 def _ocio_total_acumulado(user_id: int) -> float:
     """
     Suma el ocio disponible de todos los meses con ingresos.
-    ocio_disponible = (remanente × pct_ocio) − (imprevistos × pct_ocio) − ocio_gastado
+    Usa la misma fórmula que calcular_mes():
+        ocio_base       = (ingresos - gastos_casa) * pct_ocio
+        ocio_disponible = ocio_base - ocio_gastado
     """
     meses = _meses_con_ingresos(user_id)
     if not meses:
         return 0.0
-
-    _, _, _, total_prev = _config_previstos(user_id)
-    _, pct_o            = obtener_pct_ahorro(user_id)
-
+ 
+    _, pct_o = obtener_pct_ahorro(user_id)
+ 
     acumulado = 0.0
     for mes in meses:
         ing      = total_ingresos(user_id, mes)
-        rem      = max(0, ing - total_prev)
-        imp      = total_gastos_importantes(user_id, mes)
-        ocio_base= round((rem - imp) * pct_o, 2)
+        casa     = round(sum(g["monto"] for g in obtener_gastos_casa(user_id, mes)), 2)
+        ocio_base= round((ing - casa) * pct_o, 2)
         gastado  = round(sum(g["monto"] for g in obtener_gastos_generales(user_id, mes)), 2)
         acumulado += (ocio_base - gastado)
-
+ 
     return round(acumulado, 2)
 
 
@@ -207,10 +207,10 @@ def historico_anual(user_id: int, anio: int) -> list:
         # Solo incluir meses con datos
         if ing == 0:
             continue
-
-        rem    = max(0, ing - total_prev)
+        gastos_casa_lista  = obtener_gastos_casa(user_id, mes_str)
+        total_casa_gastado = round(sum(g["monto"] for g in gastos_casa_lista), 2)
         imp    = total_gastos_importantes(user_id, mes_str)
-        ahorro = round((rem - imp) * pct_a, 2)
+        ahorro = round(((ing - total_casa_gastado) * pct_a) - imp, 2)
         ocio_g = round(sum(g["monto"] for g in obtener_gastos_generales(user_id, mes_str)), 2)
 
         resultado.append({

@@ -22,7 +22,7 @@ from database import (
 from auth import pantalla_auth, hay_sesion, obtener_sesion, cerrar_sesion
 from calculos import (
     calcular_mes, historico_anual,
-    _ahorro_total_acumulado, _ocio_total_acumulado,
+    _ahorro_total_acumulado, _ocio_total_acumulado, 
 )
 
 
@@ -146,11 +146,6 @@ def fila_editable(item: dict, tipo: str, key_prefix: str):
 # ─────────────────────────────────────────
 # CATEGORÍAS
 # ─────────────────────────────────────────
-
-CATS_OCIO = [
-    "ropa", "comida callejera", "dulces", "entretenimiento",
-    "salidas", "suscripciones", "hobby", "otro"
-]
 
 CATS_CASA_DEFECTO = [
     "Arriendo", "Luz", "Agua", "Factura de agua",
@@ -360,14 +355,13 @@ with tab_ing:
                                           step=5.0, key="oc_m")
                 co_oc  = st.text_input("Concepto", placeholder="Ej: Camiseta",
                                        key="oc_c", autocomplete="off")
-                cat_oc = st.selectbox("Categoría", CATS_OCIO, key="oc_cat")
                 if st.form_submit_button("Guardar", use_container_width=True):
                     if m_oc is None:
                         st.error("Introduce un monto.")
                     elif not co_oc:
                         st.error("Escribe un concepto.")
                     else:
-                        guardar_gasto_general(sesion["user_id"], str(f_oc), co_oc, m_oc, cat_oc)
+                        guardar_gasto_general(sesion["user_id"], str(f_oc), co_oc, m_oc)
                         d_post    = calcular_mes(sesion["user_id"], mes_sel)
                         ocio_rest = d_post["ocio_disponible"]
                         if ocio_rest < 0:

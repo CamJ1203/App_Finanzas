@@ -58,10 +58,16 @@ def borrar_gasto_importante(id):
 
 def total_gastos_importantes(user_id, mes):
     with get_db() as conn:
-        resultado = conn.execute(
+        fila = conn.execute(
             "SELECT SUM(monto) FROM gastos_importantes WHERE user_id=? AND fecha LIKE ?",
             (user_id, f"{mes}%")
-        ).fetchone()[0]
+        ).fetchone()
+    if not fila:
+        return 0
+    if isinstance(fila, dict):
+        resultado = next(iter(fila.values()))
+    else:
+        resultado = fila[0]
     return resultado or 0
 
 

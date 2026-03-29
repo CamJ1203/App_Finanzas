@@ -1,4 +1,4 @@
 streamlit
-pandas
-plotly
 PyJWT
+psycopg2-binary
+python-dotenv

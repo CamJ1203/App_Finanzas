@@ -1,36 +1,116 @@
+import os
 import sqlite3
 from contextlib import contextmanager
+from urllib.parse import quote
 
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from dotenv import load_dotenv
+
+load_dotenv()
+
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+USE_POSTGRES = bool(DATABASE_URL)
 DB_PATH = "finanzas.db"
 
 
-# ─────────────────────────────────────────
-# CONEXIÓN — context manager
-# ─────────────────────────────────────────
+def _normalize_database_url(url: str) -> str:
+    if not url or "://" not in url:
+        return url
+
+    scheme, rest = url.split("://", 1)
+    if scheme not in ("postgresql", "postgres"):
+        return url
+
+    if "@" not in rest:
+        return url
+
+    creds, host_part = rest.rsplit("@", 1)
+    if ":" not in creds:
+        return url
+
+    user, password = creds.split(":", 1)
+    if password.startswith("[") and password.endswith("]"):
+        password = password[1:-1]
+
+    user = quote(user, safe="%")
+    password = quote(password, safe="%")
+    return f"{scheme}://{user}:{password}@{host_part}"
+
+
+def _sqlite_default_date():
+    return "(date('now'))"
+
+
+def _postgres_default_date():
+    return "(CURRENT_DATE::text)"
+
+
+def _integer_pk():
+    return "SERIAL PRIMARY KEY" if USE_POSTGRES else "INTEGER PRIMARY KEY AUTOINCREMENT"
+
+
+def _boolean_default(value: bool):
+    if USE_POSTGRES:
+        return "TRUE" if value else "FALSE"
+    return "1" if value else "0"
+
+
+class PostgresConnection:
+    def __init__(self, conn):
+        self._conn = conn
+        self._cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+    def execute(self, sql, params=None):
+        params = params or ()
+        if isinstance(sql, str):
+            sql = sql.replace("?", "%s")
+        self._cursor.execute(sql, tuple(params))
+        return self
+
+    def fetchone(self):
+        return self._cursor.fetchone()
+
+    def fetchall(self):
+        return self._cursor.fetchall()
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def close(self):
+        self._cursor.close()
+        self._conn.close()
+
 
 @contextmanager
 def get_db():
     """
-    Abre la conexión, la entrega al bloque with,
-    hace commit si todo salió bien, rollback si hubo error,
-    y cierra siempre al final.
+    Abre la conexión a SQLite local o a Postgres/Supabase.
 
-    Uso:
-        with get_db() as conn:
-            conn.execute(...)
-        # conn cerrada automáticamente aquí
+    - Si la variable de entorno DATABASE_URL está configurada,
+      usa esa conexión Postgres.
+    - Si no, usa el archivo local finanzas.db.
     """
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
+    if USE_POSTGRES:
+        conn = psycopg2.connect(_normalize_database_url(DATABASE_URL))
+        db = PostgresConnection(conn)
+    else:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
+        db = conn
+
     try:
-        yield conn          # entrega la conexión al bloque with
-        conn.commit()       # si no hubo error → confirma cambios
+        yield db
+        db.commit()
     except Exception:
-        conn.rollback()     # si hubo error → deshace cambios
-        raise               # re-lanza el error para que se vea
+        db.rollback()
+        raise
     finally:
-        conn.close()        # siempre cierra, pase lo que pase
+        db.close()
 
 
 # ─────────────────────────────────────────
@@ -39,99 +119,99 @@ def get_db():
 
 def crear_tablas():
     with get_db() as conn:
-        conn.execute("""
+        conn.execute(f"""
             CREATE TABLE IF NOT EXISTS usuarios (
-                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                id         {_integer_pk()},
                 nombre     TEXT NOT NULL,
                 email      TEXT NOT NULL UNIQUE,
                 password   TEXT NOT NULL,
                 pct_ahorro REAL NOT NULL DEFAULT 0.70
                                CHECK(pct_ahorro > 0 AND pct_ahorro < 1),
-                creado     DATE DEFAULT (date('now'))
+                creado     TEXT DEFAULT {_postgres_default_date() if USE_POSTGRES else _sqlite_default_date()}
             )
         """)
-        conn.execute("""
+        conn.execute(f"""
             CREATE TABLE IF NOT EXISTS ingresos (
-                id       INTEGER PRIMARY KEY AUTOINCREMENT,
+                id       {_integer_pk()},
                 user_id  INTEGER NOT NULL,
-                fecha    DATE NOT NULL,
+                fecha    TEXT NOT NULL,
                 concepto TEXT NOT NULL,
                 monto    REAL NOT NULL,
                 tipo     TEXT NOT NULL CHECK(tipo IN ('sueldo', 'extra')),
                 FOREIGN KEY (user_id) REFERENCES usuarios(id)
             )
         """)
-        conn.execute("""
+        conn.execute(f"""
             CREATE TABLE IF NOT EXISTS gastos_generales (
-                id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                id        {_integer_pk()},
                 user_id   INTEGER NOT NULL,
-                fecha     DATE NOT NULL,
+                fecha     TEXT NOT NULL,
                 concepto  TEXT NOT NULL,
                 monto     REAL NOT NULL,
                 categoria TEXT NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES usuarios(id)
             )
         """)
-        conn.execute("""
+        conn.execute(f"""
             CREATE TABLE IF NOT EXISTS gastos_casa (
-                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                id         {_integer_pk()},
                 user_id    INTEGER NOT NULL,
-                fecha      DATE NOT NULL,
+                fecha      TEXT NOT NULL,
                 concepto   TEXT NOT NULL,
                 monto      REAL NOT NULL,
-                recurrente BOOLEAN DEFAULT 0,
+                recurrente BOOLEAN DEFAULT {_boolean_default(True)},
                 FOREIGN KEY (user_id) REFERENCES usuarios(id)
             )
         """)
-        conn.execute("""
+        conn.execute(f"""
             CREATE TABLE IF NOT EXISTS gastos_importantes (
-                id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                id        {_integer_pk()},
                 user_id   INTEGER NOT NULL,
-                fecha     DATE NOT NULL,
+                fecha     TEXT NOT NULL,
                 concepto  TEXT NOT NULL,
                 monto     REAL NOT NULL,
                 prioridad TEXT DEFAULT 'media',
                 FOREIGN KEY (user_id) REFERENCES usuarios(id)
             )
         """)
-        conn.execute("""
+        conn.execute(f"""
             CREATE TABLE IF NOT EXISTS config_gastos_fijos (
-                id       INTEGER PRIMARY KEY AUTOINCREMENT,
+                id       {_integer_pk()},
                 user_id  INTEGER NOT NULL,
                 concepto TEXT NOT NULL,
                 monto    REAL NOT NULL,
-                activo   BOOLEAN DEFAULT 1,
+                activo   BOOLEAN DEFAULT {_boolean_default(True)},
                 UNIQUE(user_id, concepto),
                 FOREIGN KEY (user_id) REFERENCES usuarios(id)
             )
         """)
-        conn.execute("""
+        conn.execute(f"""
             CREATE TABLE IF NOT EXISTS config_estimaciones (
-                id       INTEGER PRIMARY KEY AUTOINCREMENT,
+                id       {_integer_pk()},
                 user_id  INTEGER NOT NULL,
                 concepto TEXT NOT NULL,
                 promedio REAL NOT NULL,
-                activo   BOOLEAN DEFAULT 1,
+                activo   BOOLEAN DEFAULT {_boolean_default(True)},
                 UNIQUE(user_id, concepto),
                 FOREIGN KEY (user_id) REFERENCES usuarios(id)
             )
         """)
-        conn.execute("""
+        conn.execute(f"""
             CREATE TABLE IF NOT EXISTS config_provisiones (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                id          {_integer_pk()},
                 user_id     INTEGER NOT NULL,
                 concepto    TEXT NOT NULL,
                 monto_anual REAL NOT NULL,
-                activo      BOOLEAN DEFAULT 1,
+                activo      BOOLEAN DEFAULT {_boolean_default(True)},
                 UNIQUE(user_id, concepto),
                 FOREIGN KEY (user_id) REFERENCES usuarios(id)
             )
         """)
 
 
-        conn.execute("""
+        conn.execute(f"""
             CREATE TABLE IF NOT EXISTS cierre_mes (
-                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                id                {_integer_pk()},
                 user_id           INTEGER NOT NULL,
                 mes               TEXT NOT NULL,
                 ahorro_mes        REAL DEFAULT 0,
@@ -159,7 +239,7 @@ def crear_usuario(nombre, email, password_hash):
                 (nombre, email, password_hash)
             )
         return True
-    except sqlite3.IntegrityError:
+    except (sqlite3.IntegrityError, psycopg2.IntegrityError):
         return False
 
 

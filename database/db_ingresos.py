@@ -40,7 +40,13 @@ def _sumar(user_id, mes, tipo):
         query  += " AND tipo = ?"
         params.append(tipo)
     with get_db() as conn:
-        resultado = conn.execute(query, params).fetchone()[0]
+        fila = conn.execute(query, params).fetchone()
+    if not fila:
+        return 0
+    if isinstance(fila, dict):
+        resultado = next(iter(fila.values()))
+    else:
+        resultado = fila[0]
     return resultado or 0
 
 def borrar_ingreso(id):

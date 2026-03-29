@@ -16,7 +16,14 @@ DB_PATH = "finanzas.db"
 
 
 def _normalize_database_url(url: str) -> str:
-    if not url or "://" not in url:
+    if not url:
+        return url
+
+    url = url.strip()
+    if (url.startswith('"') and url.endswith('"')) or (url.startswith("'") and url.endswith("'")):
+        url = url[1:-1].strip()
+
+    if "://" not in url:
         return url
 
     scheme, rest = url.split("://", 1)
@@ -35,8 +42,8 @@ def _normalize_database_url(url: str) -> str:
     if password.startswith("[") and password.endswith("]"):
         password = password[1:-1]
 
-    user = quote(user, safe="%")
-    password = quote(password, safe="%")
+    user = quote(user, safe="")
+    password = quote(password, safe="")
 
     if "sslmode=" not in host_part.lower():
         if "?" in host_part:

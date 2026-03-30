@@ -13,7 +13,7 @@ from database import (
     guardar_ingreso_sueldo, guardar_ingreso_extra,
     obtener_ingresos, borrar_ingreso,
     guardar_gasto_general, obtener_gastos_generales, borrar_gasto_general,
-    obtener_gastos_casa, total_gastos_casa, borrar_gasto_casa,
+    guardar_gasto_casa, obtener_gastos_casa, total_gastos_casa, borrar_gasto_casa,
     guardar_gasto_importante, obtener_gastos_importantes, total_gastos_importantes, borrar_gasto_importante,
     total_ingresos, total_sueldo, total_extras,
     guardar_gasto_fijo, obtener_gastos_fijos, desactivar_gasto_fijo,
@@ -174,11 +174,6 @@ def fila_editable(item: dict, tipo: str, key_prefix: str):
 # CATEGORÍAS
 # ─────────────────────────────────────────
 
-CATS_CASA_DEFECTO = [
-    "Arriendo", "Luz", "Agua", "Factura de agua",
-    "Gas", "Internet", "Mantenimiento", "Otro"
-]
-
 
 # ─────────────────────────────────────────
 # SIDEBAR
@@ -321,10 +316,11 @@ def render_casa_tab(sesion, hoy, mes_sel):
 
     fijos_cfg  = obtener_gastos_fijos(sesion["user_id"])
     estims_cfg = obtener_estimaciones(sesion["user_id"])
-    cats_casa  = ([f["concepto"] for f in fijos_cfg] +
-                  [e["concepto"] for e in estims_cfg] + ["Otro"])
-    if len(cats_casa) == 1:
-        cats_casa = CATS_CASA_DEFECTO
+    cats_casa  = [f["concepto"] for f in fijos_cfg] + [e["concepto"] for e in estims_cfg]
+    if not cats_casa:
+        cats_casa = ["Otro"]
+    else:
+        cats_casa.append("Otro")
 
     with st.form("frm_cas"):
         c1, c2 = st.columns(2)

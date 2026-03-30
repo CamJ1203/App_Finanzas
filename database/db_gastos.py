@@ -48,7 +48,7 @@ def guardar_gasto_casa(user_id, fecha, concepto, monto, recurrente=False):
         conn.execute(
             "INSERT INTO gastos_casa (user_id, fecha, concepto, monto, recurrente)"
             " VALUES (?,?,?,?,?)",
-            (user_id, fecha, concepto, monto, int(recurrente))
+            (user_id, fecha, concepto, monto, bool(recurrente))
         )
     st.cache_data.clear()
 

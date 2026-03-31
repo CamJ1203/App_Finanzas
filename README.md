@@ -8,17 +8,17 @@ Este proyecto es esa conversión. La lógica es la misma que perfeccioné durant
 
 ## Cómo funciona
 
-La idea central es simple: el dinero se planifica **antes** de gastarlo.
+La idea central es simple: el dinero se planifica **antes** de gastarlo, desde el dia 1 ya sabes cual es el ingreso minimo, y en base a eso gestionas tu dinero.
 
 ---------
 INGRESOS
   − Gastos previstos (arriendo, comida, gasolina, seguros...)
   = REMANENTE
-      × % ahorro  →  Ahorro protegido
+      × % ahorro  →  Ahorro protegido o Invertido
       × % ocio    →  Dinero libre
 ---------
 
-Los gastos imprevistos (médico, reparación, algo inesperado) reducen el remanente proporcionalmente. Los gastos de ocio van restando del dinero libre. Al cerrar el mes, lo que sobró de los previstos se puede mover al ahorro o al ocio.
+Los gastos imprevistos (médico, reparación, algo inesperado) reducen el ahorro. Al cerrar el mes, lo que sobró de los previstos se puede mover al ahorro o al ocio.
 
 ---
 
@@ -32,6 +32,7 @@ Los gastos imprevistos (médico, reparación, algo inesperado) reducen el remane
 - Ver el histórico del año
 - Sesión persistente con tokens JWT — no tienes que hacer login cada vez
 - Funciona en PC, móvil y tablet
+- Llevar un control total de tu vida financiera, generando ese estado de paz que pase lo que pase sabes el porque.
 
 ---
 
@@ -39,6 +40,7 @@ Los gastos imprevistos (médico, reparación, algo inesperado) reducen el remane
 
 - **Python** — lógica y backend
 - **SQLite** — base de datos local (un solo archivo)
+- **Postsql** - base de datos en la nube
 - **Streamlit** — interfaz web
 - **PyJWT** — autenticación con tokens seguros
 

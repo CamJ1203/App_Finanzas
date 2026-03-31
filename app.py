@@ -1,3 +1,5 @@
+#NOTA: Cambie el nombre de Gastos casa a Gastos fijos, ya que es más representativo de lo que realmente son, y permite incluir otros gastos previstos que no sean solo de casa. las variables no las toque tomar en cuenta.
+
 """
 app.py — App de Finanzas Personales
 Ejecutar: streamlit run app.py
@@ -310,8 +312,8 @@ def render_imprevisto_tab(sesion, hoy, mes_sel):
 
 @fragment
 def render_casa_tab(sesion, hoy, mes_sel):
-    """Fragmento de gasto de casa aislado para evitar recargar el resumen global."""
-    st.subheader("Gasto de casa")
+    """Fragmento de gasto fijo aislado para evitar recargar el resumen global."""
+    st.subheader("Gastos fijos")
     st.caption("Arriendo, luz, agua, internet... Elige la categoría del previsto.")
 
     fijos_cfg  = obtener_gastos_fijos(sesion["user_id"])
@@ -340,7 +342,7 @@ def render_casa_tab(sesion, hoy, mes_sel):
                 guardar_gasto_casa(
                     sesion["user_id"], str(f_ca), f"{cat_ca}: {co_ca}", m_ca, False
                 )
-                st.success(f"Gasto de casa registrado en '{cat_ca}'.")
+                st.success(f"Gasto fijo registrado en '{cat_ca}'.")
                 st.rerun()
 
 
@@ -370,7 +372,7 @@ with tab_res:
     st.subheader("Estado del mes")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("💵 Ingresos",       f"€{d['ing_total']:,.2f}")
-    c2.metric("📦 Previstos",       f"€{d['total_previstos']:,.2f}")
+    c2.metric("📦 Gastos fijos €",   f"€{d['total_previstos']:,.2f}")
     c3.metric("💾 Ahorro mensual",  f"€{d['ahorro_real']:,.2f}")
     c4.metric("🎉 Ocio disponible", f"€{d['ocio_disponible']:,.2f}")
 
@@ -385,7 +387,7 @@ with tab_res:
     st.divider()
 
     st.subheader("📋 Plan del mes")
-    st.caption("Previstos configurados vs lo que has gastado en casa este mes.")
+    st.caption("Previstos configurados vs lo que has gastado en gastos fijos este mes.")
 
     filas_plan = []
     for f in d["detalle_fijos"]:
@@ -426,7 +428,7 @@ with tab_res:
         diferencia_plan    = round(d["total_previstos"] - total_gastado_casa, 2)
         c1, c2 = st.columns(2)
         c1.metric("Total previstos",     f"€{d['total_previstos']:,.2f}")
-        c2.metric("Gastado vs previsto",  f"€{total_gastado_casa:,.2f}",
+        c2.metric("Total gastado",  f"€{total_gastado_casa:,.2f}",
                   delta=f"€{diferencia_plan:.2f} restante" if diferencia_plan >= 0
                         else f"€{abs(diferencia_plan):.2f} excedido",
                   delta_color="normal" if diferencia_plan >= 0 else "inverse")
@@ -443,7 +445,7 @@ with tab_res:
             column_config={
                 "mes":         "Mes",
                 "ingresos":    st.column_config.NumberColumn("Ingresos €",    format="€%.2f"),
-                "previstos":   st.column_config.NumberColumn("Previstos €",   format="€%.2f"),
+                "previstos":   st.column_config.NumberColumn("Gastos fijos €",   format="€%.2f"),
                 "imprevistos": st.column_config.NumberColumn("Imprevistos €", format="€%.2f"),
                 "ocio_gast":   st.column_config.NumberColumn("Ocio gastado €",format="€%.2f"),
                 "ahorro":      st.column_config.NumberColumn("Ahorro €",      format="€%.2f"),
@@ -464,7 +466,7 @@ with tab_ing:
         st.error(f"🔒 El mes {mes_sel} está cerrado. Ve a 'Cierre' para desbloquearlo.")
     else:
         sub1, sub2, sub3, sub4 = st.tabs([
-            "💼 Ingresos", "🛒 Ocio", "⚠️ Imprevisto", "🏠 Casa"
+            "💼 Ingresos", "🛒 Ocio", "⚠️ Imprevisto", "🏠 Gastos fijos"
         ])
 
         # ── Ingresos ─────────────────────
@@ -479,7 +481,7 @@ with tab_ing:
         with sub3:
             render_imprevisto_tab(sesion, hoy, mes_sel)
 
-        # ── Casa ─────────────────────────
+        # ── Gastos fijos ─────────────────────────
         with sub4:
             render_casa_tab(sesion, hoy, mes_sel)
 
@@ -492,7 +494,7 @@ with tab_his:
     st.header(f"Historial — {mes_sel}")
 
     sh1, sh2, sh3, sh4 = st.tabs([
-        "Ingresos", "Ocio", "Imprevistos + Casa", "Todos los movimientos"
+        "Ingresos", "Ocio", "Imprevistos + Gastos fijos", "Todos los movimientos"
     ])
 
     with sh1:
@@ -524,16 +526,16 @@ with tab_his:
                 fila_editable(it, "importante", "im")
             st.markdown(f"**Total imprevistos: €{db.total_gastos_importantes(sesion['user_id'], mes_sel):.2f}**")
         if cas:
-            st.caption("🏠 Gastos de casa")
+            st.caption("🏠 Gastos fijos")
             for it in cas:
                 fila_editable(
                     {**it, "categoria": it["concepto"].split(":")[0]
                      if ":" in it["concepto"] else "—"},
                     "casa", "ca"
                 )
-            st.markdown(f"**Total casa: €{db.total_gastos_casa(sesion['user_id'], mes_sel):.2f}**")
+            st.markdown(f"**Total gastos fijos: €{db.total_gastos_casa(sesion['user_id'], mes_sel):.2f}**")
         if not imp and not cas:
-            st.info("Sin imprevistos ni gastos de casa este mes.")
+            st.info("Sin imprevistos ni gastos fijos este mes.")
 
     with sh4:
         todos = []
@@ -547,7 +549,7 @@ with tab_his:
             todos.append({"fecha": it["fecha"], "tipo": "Imprevisto",
                           "concepto": it["concepto"], "monto": -it["monto"]})
         for it in obtener_gastos_casa(sesion["user_id"], mes_sel):
-            todos.append({"fecha": it["fecha"], "tipo": "Casa",
+            todos.append({"fecha": it["fecha"], "tipo": "Gastos fijos",
                           "concepto": it["concepto"], "monto": -it["monto"]})
         if todos:
             st.dataframe(
@@ -590,7 +592,7 @@ with tab_cie:
         st.subheader("Resumen antes de cerrar")
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Ingresos",    f"€{d_cie['ing_total']:.2f}")
-        c2.metric("Previstos",   f"€{d_cie['total_previstos']:.2f}")
+        c2.metric("Gastos fijos €",   f"€{d_cie['total_previstos']:.2f}")
         c3.metric("Imprevistos", f"€{d_cie['total_imprevistos']:.2f}")
         c4.metric("Ocio gastado",f"€{d_cie['total_ocio_gastado']:.2f}")
 

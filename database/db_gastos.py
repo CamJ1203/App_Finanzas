@@ -1,3 +1,5 @@
+#Cambie el nombre de Gastos casa a Gastos fijos, ya que es más representativo de lo que realmente son, y permite incluir otros gastos previstos que no sean solo de casa. 
+#las variables no las toque asi que tomar en cuenta.
 import streamlit as st
 from .db_core import get_db
 
@@ -40,7 +42,7 @@ def borrar_gasto_general(id):
 
 
 # ─────────────────────────────────────────
-# GASTOS DE CASA
+# GASTOS FIJOS
 # ─────────────────────────────────────────
 
 def guardar_gasto_casa(user_id, fecha, concepto, monto, recurrente=False):
@@ -57,7 +59,7 @@ def obtener_gastos_casa(user_id, mes=None):
 
 @st.cache_data(ttl=600)
 def total_gastos_casa(user_id, mes):
-    """Total de gastos de casa por mes, calculado en SQL."""
+    """Total de gastos fijos por mes, calculado en SQL."""
     with get_db() as conn:
         fila = conn.execute(
             "SELECT SUM(monto) AS total FROM gastos_casa"

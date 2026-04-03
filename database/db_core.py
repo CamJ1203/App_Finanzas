@@ -307,11 +307,26 @@ def crear_tablas():
 
 
 def _asegurar_columna_creado_en(conn, tabla: str):
+    if _existe_columna(conn, tabla, "creado_en"):
+        return
     default_sql = _postgres_default_timestamp() if USE_POSTGRES else _sqlite_default_timestamp()
-    try:
-        conn.execute(f"ALTER TABLE {tabla} ADD COLUMN creado_en TEXT DEFAULT {default_sql}")
-    except Exception:
-        pass
+    conn.execute(f"ALTER TABLE {tabla} ADD COLUMN creado_en TEXT DEFAULT {default_sql}")
+
+
+def _existe_columna(conn, tabla: str, columna: str) -> bool:
+    if USE_POSTGRES:
+        fila = conn.execute(
+            """
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = ? AND column_name = ?
+            """,
+            (tabla, columna),
+        ).fetchone()
+    else:
+        fila = conn.execute(f"PRAGMA table_info({tabla})").fetchall()
+        return any(col["name"] == columna for col in fila)
+    return fila is not None
 
 
 def _rellenar_creado_en_si_falta(conn, tabla: str):

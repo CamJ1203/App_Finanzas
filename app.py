@@ -25,7 +25,7 @@ from database import (
     obtener_metricas_agrupadas, obtener_totales_configurables,
 )
 from auth import pantalla_auth, hay_sesion, obtener_sesion, cerrar_sesion
-from logic.calculos import (
+from logic import (
     obtener_dashboard_contexto, obtener_resumen_global,
 )
 

@@ -3,6 +3,8 @@
 from .calculos import (
     calcular_mes,
     historico_anual,
+    obtener_dashboard_contexto,
+    obtener_resumen_global,
     _ahorro_total_acumulado,
     _ocio_total_acumulado,
 )
@@ -10,6 +12,8 @@ from .calculos import (
 __all__ = [
     "calcular_mes",
     "historico_anual",
+    "obtener_dashboard_contexto",
+    "obtener_resumen_global",
     "_ahorro_total_acumulado",
     "_ocio_total_acumulado",
 ]

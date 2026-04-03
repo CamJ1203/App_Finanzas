@@ -29,6 +29,10 @@ def _get_sqlite_connection():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA synchronous = NORMAL")
+    conn.execute("PRAGMA temp_store = MEMORY")
+    conn.execute("PRAGMA busy_timeout = 5000")
     return conn
 
 
@@ -77,6 +81,14 @@ def _sqlite_default_date():
 
 def _postgres_default_date():
     return "(CURRENT_DATE::text)"
+
+
+def _sqlite_default_timestamp():
+    return "(strftime('%Y-%m-%d %H:%M:%f', 'now'))"
+
+
+def _postgres_default_timestamp():
+    return "(to_char(CURRENT_TIMESTAMP, 'YYYY-MM-DD HH24:MI:SS.MS'))"
 
 
 def _integer_pk():
@@ -161,7 +173,7 @@ def get_db():
 # CREAR TABLAS
 # ─────────────────────────────────────────
 
-@st.cache_data(ttl=600)
+@st.cache_resource
 def crear_tablas():
     with get_db() as conn:
         conn.execute(f"""
@@ -183,6 +195,7 @@ def crear_tablas():
                 concepto TEXT NOT NULL,
                 monto    REAL NOT NULL,
                 tipo     TEXT NOT NULL CHECK(tipo IN ('sueldo', 'extra')),
+                creado_en TEXT DEFAULT {_postgres_default_timestamp() if USE_POSTGRES else _sqlite_default_timestamp()},
                 FOREIGN KEY (user_id) REFERENCES usuarios(id)
             )
         """)
@@ -194,6 +207,7 @@ def crear_tablas():
                 concepto  TEXT NOT NULL,
                 monto     REAL NOT NULL,
                 categoria TEXT NOT NULL,
+                creado_en TEXT DEFAULT {_postgres_default_timestamp() if USE_POSTGRES else _sqlite_default_timestamp()},
                 FOREIGN KEY (user_id) REFERENCES usuarios(id)
             )
         """)
@@ -205,6 +219,7 @@ def crear_tablas():
                 concepto   TEXT NOT NULL,
                 monto      REAL NOT NULL,
                 recurrente BOOLEAN DEFAULT {_boolean_default(True)},
+                creado_en  TEXT DEFAULT {_postgres_default_timestamp() if USE_POSTGRES else _sqlite_default_timestamp()},
                 FOREIGN KEY (user_id) REFERENCES usuarios(id)
             )
         """)
@@ -216,6 +231,7 @@ def crear_tablas():
                 concepto  TEXT NOT NULL,
                 monto     REAL NOT NULL,
                 prioridad TEXT DEFAULT 'media',
+                creado_en TEXT DEFAULT {_postgres_default_timestamp() if USE_POSTGRES else _sqlite_default_timestamp()},
                 FOREIGN KEY (user_id) REFERENCES usuarios(id)
             )
         """)
@@ -268,14 +284,44 @@ def crear_tablas():
             )
         """)
 
+        _asegurar_columna_creado_en(conn, "ingresos")
+        _asegurar_columna_creado_en(conn, "gastos_generales")
+        _asegurar_columna_creado_en(conn, "gastos_casa")
+        _asegurar_columna_creado_en(conn, "gastos_importantes")
+        _rellenar_creado_en_si_falta(conn, "ingresos")
+        _rellenar_creado_en_si_falta(conn, "gastos_generales")
+        _rellenar_creado_en_si_falta(conn, "gastos_casa")
+        _rellenar_creado_en_si_falta(conn, "gastos_importantes")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_ingresos_user_fecha ON ingresos(user_id, fecha)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_ingresos_user_creado_en ON ingresos(user_id, creado_en)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_gastos_generales_user_fecha ON gastos_generales(user_id, fecha)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_gastos_generales_user_creado_en ON gastos_generales(user_id, creado_en)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_gastos_casa_user_fecha ON gastos_casa(user_id, fecha)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_gastos_casa_user_creado_en ON gastos_casa(user_id, creado_en)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_gastos_importantes_user_fecha ON gastos_importantes(user_id, fecha)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_gastos_importantes_user_creado_en ON gastos_importantes(user_id, creado_en)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_config_gastos_fijos_user_activo ON config_gastos_fijos(user_id, activo)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_config_estimaciones_user_activo ON config_estimaciones(user_id, activo)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_config_provisiones_user_activo ON config_provisiones(user_id, activo)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_cierre_mes_user_mes ON cierre_mes(user_id, mes)")
+
+
+def _asegurar_columna_creado_en(conn, tabla: str):
+    default_sql = _postgres_default_timestamp() if USE_POSTGRES else _sqlite_default_timestamp()
+    try:
+        conn.execute(f"ALTER TABLE {tabla} ADD COLUMN creado_en TEXT DEFAULT {default_sql}")
+    except Exception:
+        pass
+
+
+def _rellenar_creado_en_si_falta(conn, tabla: str):
+    conn.execute(
+        f"UPDATE {tabla} "
+        "SET creado_en = CASE "
+        "WHEN creado_en IS NULL OR creado_en = '' THEN fecha || ' 00:00:00.000' "
+        "ELSE creado_en END "
+        "WHERE creado_en IS NULL OR creado_en = ''"
+    )
 
 
 

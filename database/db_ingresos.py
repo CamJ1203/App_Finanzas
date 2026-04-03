@@ -1,5 +1,10 @@
+from datetime import datetime
 import streamlit as st
 from .db_core import get_db
+
+
+def _timestamp_actual():
+    return datetime.now().isoformat(timespec="milliseconds")
 
 def guardar_ingreso_sueldo(user_id, fecha, concepto, monto):
     _guardar(user_id, fecha, concepto, monto, "sueldo")
@@ -10,8 +15,8 @@ def guardar_ingreso_extra(user_id, fecha, concepto, monto):
 def _guardar(user_id, fecha, concepto, monto, tipo):
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO ingresos (user_id, fecha, concepto, monto, tipo) VALUES (?,?,?,?,?)",
-            (user_id, fecha, concepto, monto, tipo)
+            "INSERT INTO ingresos (user_id, fecha, concepto, monto, tipo, creado_en) VALUES (?,?,?,?,?,?)",
+            (user_id, fecha, concepto, monto, tipo, _timestamp_actual())
         )
     # Invalida solo después de escribir; el cache de lectura permanece válido hasta que hay cambios.
     st.cache_data.clear()
@@ -23,7 +28,7 @@ def obtener_ingresos(user_id, mes=None):
     if mes:
         query  += " AND fecha LIKE ?"
         params.append(f"{mes}%")
-    query += " ORDER BY fecha DESC"
+    query += " ORDER BY creado_en DESC, fecha DESC, id DESC"
     with get_db() as conn:
         filas = conn.execute(query, params).fetchall()
     return [dict(f) for f in filas]

@@ -1,9 +1,9 @@
 import streamlit as st
-from typing import Dict
 from database import (
     obtener_metricas_agrupadas,
     obtener_totales_configurables,
     obtener_pct_ahorro,
+    obtener_ingresos,
     obtener_gastos_fijos,
     obtener_estimaciones,
     obtener_provisiones,
@@ -27,7 +27,8 @@ def _row_for_mes(mes: str, metricas: dict[str, dict[str, float]]) -> dict[str, f
 
 @st.cache_data(ttl=600)
 def calcular_mes(user_id: int, mes: str) -> dict[str, float]:
-    metricas = obtener_metricas_agrupadas(user_id)
+    anio = int(mes.split("-", 1)[0])
+    metricas = obtener_metricas_agrupadas(user_id, anio=anio)
     config = obtener_totales_configurables(user_id)
     totals = _row_for_mes(mes, metricas)
 
@@ -80,38 +81,36 @@ def calcular_mes(user_id: int, mes: str) -> dict[str, float]:
 
 @st.cache_data(ttl=600)
 def _ahorro_total_acumulado(user_id: int) -> float:
-    metricas = obtener_metricas_agrupadas(user_id)
-    pct_a, _ = obtener_pct_ahorro(user_id)
-
-    acumulado = 0.0
-    for row in metricas.values():
-        acumulado += round(((row["ingresos"] - row["casa"]) * pct_a) - row["imprevistos"], 2)
-
-    return round(acumulado, 2)
+    return obtener_resumen_global(user_id)["ahorro_total"]
 
 
 @st.cache_data(ttl=600)
 def _ocio_total_acumulado(user_id: int) -> float:
+    return obtener_resumen_global(user_id)["ocio_total"]
+
+
+@st.cache_data(ttl=600)
+def obtener_resumen_global(user_id: int) -> dict[str, float]:
     metricas = obtener_metricas_agrupadas(user_id)
-    _, pct_o = obtener_pct_ahorro(user_id)
+    pct_a, pct_o = obtener_pct_ahorro(user_id)
 
-    acumulado = 0.0
+    ahorro_acumulado = 0.0
+    ocio_acumulado = 0.0
     for row in metricas.values():
+        ahorro_acumulado += round(((row["ingresos"] - row["casa"]) * pct_a) - row["imprevistos"], 2)
         ocio_base = round((row["ingresos"] - row["casa"]) * pct_o, 2)
-        acumulado += round(ocio_base - row["ocio"], 2)
+        ocio_acumulado += round(ocio_base - row["ocio"], 2)
 
-    return round(acumulado, 2)
+    return {
+        "ahorro_total": round(ahorro_acumulado, 2),
+        "ocio_total": round(ocio_acumulado, 2),
+    }
 
 
 @st.cache_data(ttl=600)
 def historico_anual(user_id: int, anio: int) -> list[dict[str, float]]:
     metricas = obtener_metricas_agrupadas(user_id, anio=anio)
-    config = obtener_totales_configurables(user_id)
     pct_a, _ = obtener_pct_ahorro(user_id)
-
-    total_previstos = round(
-        config["fijos"] + config["estimaciones"] + config["provisiones"], 2
-    )
 
     nombre_meses = [
         "Ene","Feb","Mar","Abr","May","Jun",
@@ -129,10 +128,74 @@ def historico_anual(user_id: int, anio: int) -> list[dict[str, float]]:
         resultado.append({
             "mes": nombre,
             "ingresos": fila["ingresos"],
-            "previstos": total_previstos,
+            "previstos": fila["casa"] + fila["ocio"] + fila["imprevistos"],
             "imprevistos": fila["imprevistos"],
             "ocio_gast": fila["ocio"],
             "ahorro": ahorro,
         })
 
     return resultado
+
+
+@st.cache_data(ttl=600)
+def obtener_dashboard_contexto(user_id: int, mes: str, anio: int) -> dict[str, object]:
+    ingresos = obtener_ingresos(user_id, mes)
+    gastos_ocio = obtener_gastos_generales(user_id, mes)
+    d_mes = calcular_mes(user_id, mes)
+
+    todos: list[dict[str, object]] = []
+    for item in ingresos:
+        todos.append({
+            "_orden": item.get("creado_en") or f"{item['fecha']} 00:00:00.000",
+            "fecha": item["fecha"],
+            "tipo": "Ingreso",
+            "concepto": item["concepto"],
+            "monto": item["monto"],
+        })
+    for item in gastos_ocio:
+        todos.append({
+            "_orden": item.get("creado_en") or f"{item['fecha']} 00:00:00.000",
+            "fecha": item["fecha"],
+            "tipo": "Ocio",
+            "concepto": item["concepto"],
+            "monto": -item["monto"],
+        })
+    for item in d_mes["gastos_imp_lista"]:
+        todos.append({
+            "_orden": item.get("creado_en") or f"{item['fecha']} 00:00:00.000",
+            "fecha": item["fecha"],
+            "tipo": "Imprevisto",
+            "concepto": item["concepto"],
+            "monto": -item["monto"],
+        })
+    for item in d_mes["gastos_casa_lista"]:
+        todos.append({
+            "_orden": item.get("creado_en") or f"{item['fecha']} 00:00:00.000",
+            "fecha": item["fecha"],
+            "tipo": "Gastos fijos",
+            "concepto": item["concepto"],
+            "monto": -item["monto"],
+        })
+
+    return {
+        "resumen_global": obtener_resumen_global(user_id),
+        "mes": d_mes,
+        "hist": historico_anual(user_id, anio),
+        "ingresos": ingresos,
+        "gastos_ocio": gastos_ocio,
+        "todos": [
+            {
+                "fecha": item["fecha"],
+                "tipo": item["tipo"],
+                "concepto": item["concepto"],
+                "monto": item["monto"],
+            }
+            for item in sorted(todos, key=lambda x: (x["_orden"], x["fecha"]), reverse=True)
+        ],
+        "totales_historial": {
+            "ingresos": round(sum(item["monto"] for item in ingresos), 2),
+            "ocio": round(sum(item["monto"] for item in gastos_ocio), 2),
+            "imprevistos": round(sum(item["monto"] for item in d_mes["gastos_imp_lista"]), 2),
+            "casa": round(sum(item["monto"] for item in d_mes["gastos_casa_lista"]), 2),
+        },
+    }

@@ -1,7 +1,12 @@
 #Cambie el nombre de Gastos casa a Gastos fijos, ya que es más representativo de lo que realmente son, y permite incluir otros gastos previstos que no sean solo de casa. 
 #las variables no las toque asi que tomar en cuenta.
+from datetime import datetime
 import streamlit as st
 from .db_core import get_db
+
+
+def _timestamp_actual():
+    return datetime.now().isoformat(timespec="milliseconds")
 
 # ─────────────────────────────────────────
 # GASTOS GENERALES (ocio)
@@ -10,9 +15,9 @@ from .db_core import get_db
 def guardar_gasto_general(user_id, fecha, concepto, monto, categoria):
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO gastos_generales (user_id, fecha, concepto, monto, categoria)"
-            " VALUES (?,?,?,?,?)",
-            (user_id, fecha, concepto, monto, categoria)
+            "INSERT INTO gastos_generales (user_id, fecha, concepto, monto, categoria, creado_en)"
+            " VALUES (?,?,?,?,?,?)",
+            (user_id, fecha, concepto, monto, categoria, _timestamp_actual())
         )
     # Solo limpiar cache cuando hay una mutación de datos.
     st.cache_data.clear()
@@ -48,9 +53,9 @@ def borrar_gasto_general(id):
 def guardar_gasto_casa(user_id, fecha, concepto, monto, recurrente=False):
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO gastos_casa (user_id, fecha, concepto, monto, recurrente)"
-            " VALUES (?,?,?,?,?)",
-            (user_id, fecha, concepto, monto, bool(recurrente))
+            "INSERT INTO gastos_casa (user_id, fecha, concepto, monto, recurrente, creado_en)"
+            " VALUES (?,?,?,?,?,?)",
+            (user_id, fecha, concepto, monto, bool(recurrente), _timestamp_actual())
         )
     st.cache_data.clear()
 
@@ -85,9 +90,9 @@ def borrar_gasto_casa(id):
 def guardar_gasto_importante(user_id, fecha, concepto, monto, prioridad="media"):
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO gastos_importantes (user_id, fecha, concepto, monto, prioridad)"
-            " VALUES (?,?,?,?,?)",
-            (user_id, fecha, concepto, monto, prioridad)
+            "INSERT INTO gastos_importantes (user_id, fecha, concepto, monto, prioridad, creado_en)"
+            " VALUES (?,?,?,?,?,?)",
+            (user_id, fecha, concepto, monto, prioridad, _timestamp_actual())
         )
     st.cache_data.clear()
 
@@ -151,7 +156,7 @@ def _consultar(tabla, user_id, mes):
     if mes:
         query  += " AND fecha LIKE ?"
         params.append(f"{mes}%")
-    query += " ORDER BY fecha DESC"
+    query += " ORDER BY creado_en DESC, fecha DESC, id DESC"
     with get_db() as conn:
         filas = conn.execute(query, params).fetchall()
     return [dict(f) for f in filas]

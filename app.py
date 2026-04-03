@@ -26,10 +26,8 @@ from database import (
 )
 from auth import pantalla_auth, hay_sesion, obtener_sesion, cerrar_sesion
 from logic.calculos import (
-    calcular_mes, historico_anual,
-    _ahorro_total_acumulado, _ocio_total_acumulado,
+    obtener_dashboard_contexto, obtener_resumen_global,
 )
-
 
 # ─────────────────────────────────────────
 # CONFIGURACIÓN
@@ -205,9 +203,10 @@ def render_sidebar(sesion, hoy):
     else:
         st.success(f"🟢 {mes_sel} activo")
 
+    resumen_global = obtener_resumen_global(sesion["user_id"])
     st.divider()
-    st.metric("🎯 Ahorro total", f"€{_ahorro_total_acumulado(sesion['user_id']):,.2f}")
-    st.metric("🎉 Ocio total restante", f"€{_ocio_total_acumulado(sesion['user_id']):,.2f}")
+    st.metric("🎯 Ahorro total", f"€{resumen_global['ahorro_total']:,.2f}")
+    st.metric("🎉 Ocio total restante", f"€{resumen_global['ocio_total']:,.2f}")
     st.divider()
     pct_a = int(sesion["pct_ahorro"] * 100)
     st.caption(f"Ahorro: **{pct_a}%** · Ocio: **{100 - pct_a}%**")
@@ -219,17 +218,27 @@ def render_sidebar(sesion, hoy):
 
 
 @fragment
-def render_ingreso_tab(sesion, hoy, mes_sel):
+def render_ingreso_tab(sesion, hoy, d_prev):
     """Fragmento de ingreso aislado para no recargar todo el dashboard."""
     st.subheader("Registrar ingreso")
+
+    if "reset_ingreso" not in st.session_state:
+        st.session_state.reset_ingreso = False
+
+   
+    if st.session_state.reset_ingreso:
+        st.session_state.m_ing = 0
+        st.session_state.co_ing = ""
+        st.session_state.reset_ingreso = False
+
     tipo_ing = st.radio("Tipo", ["Sueldo", "Extra"], horizontal=True)
     with st.form("frm_ing"):
         c1, c2 = st.columns(2)
-        f_ing  = c1.date_input("Fecha", value=hoy)
+        f_ing  = c1.date_input("Fecha", value=hoy, key="f_ing")
         m_ing  = c2.number_input("Monto (€)", min_value=0.01,
-                                  value=None, placeholder="ej: 1200.00", step=50.0)
+                                  value=None, placeholder="ej: 1200.00", step=50.0, key="m_ing")
         co_ing = st.text_input("Concepto", placeholder="Ej: Sueldo marzo",
-                               autocomplete="off")
+                               autocomplete="off", key="co_ing")
         if st.form_submit_button("Guardar", use_container_width=True):
             if m_ing is None:
                 st.error("Introduce un monto.")
@@ -241,9 +250,9 @@ def render_ingreso_tab(sesion, hoy, mes_sel):
                 else:
                     guardar_ingreso_extra(sesion["user_id"], str(f_ing), co_ing, m_ing)
                 st.success(f"Ingreso de €{m_ing:.2f} registrado.")
+                st.session_state.reset_ingreso = True
                 st.rerun()
 
-    d_prev = calcular_mes(sesion["user_id"], mes_sel)
     if d_prev["ing_total"] > 0:
         st.divider()
         st.caption("Vista previa de distribución:")
@@ -260,14 +269,22 @@ def render_ocio_tab(sesion, hoy, mes_sel):
     """Fragmento de gasto de ocio aislado para mejorar la velocidad percibida."""
     st.subheader("Gasto de ocio")
     st.caption("Ropa, dulces, comida callejera, entretenimiento, salidas...")
+    if "reset_ocio" not in st.session_state:
+        st.session_state.reset_ocio = False
+        
+    if st.session_state.reset_ocio: 
+        st.session_state.m_oc = 0
+        st.session_state.co_oc = ""
+        st.session_state.reset_ocio = False 
+    
     with st.form("frm_ocio"):
         c1, c2 = st.columns(2)
-        f_oc   = c1.date_input("Fecha", value=hoy, key="oc_f")
+        f_oc   = c1.date_input("Fecha", value=hoy)
         m_oc   = c2.number_input("Monto (€)", min_value=0.01,
                                   value=None, placeholder="ej: 25.00",
-                                  step=5.0, key="oc_m")
+                                  step=5.0, key="m_oc")
         co_oc  = st.text_input("Concepto", placeholder="Ej: Camiseta",
-                               key="oc_c", autocomplete="off")
+                               autocomplete="off", key="co_oc")
         if st.form_submit_button("Guardar", use_container_width=True):
             if m_oc is None:
                 st.error("Introduce un monto.")
@@ -275,12 +292,8 @@ def render_ocio_tab(sesion, hoy, mes_sel):
                 st.error("Escribe un concepto.")
             else:
                 guardar_gasto_general(sesion["user_id"], str(f_oc), co_oc, m_oc, "Ocio")
-                d_post    = calcular_mes(sesion["user_id"], mes_sel)
-                ocio_rest = d_post["ocio_disponible"]
-                if ocio_rest < 0:
-                    st.warning(f"⚠️ Pasaste el límite de ocio. Disponible: €{ocio_rest:.2f}")
-                else:
-                    st.success(f"Registrado. Ocio restante: €{ocio_rest:.2f}")
+                st.success("Gasto de ocio registrado.")
+                st.session_state.reset_ocio = True
                 st.rerun()
 
 
@@ -289,14 +302,22 @@ def render_imprevisto_tab(sesion, hoy, mes_sel):
     """Fragmento de gasto imprevisto aislado para reducir efectos secundarios."""
     st.subheader("Gasto imprevisto importante")
     st.caption("Sale del remanente, reduciendo ahorro y ocio proporcionalmente.")
+
+    if "reset_imprevisto" not in st.session_state:
+        st.session_state.reset_imprevisto = False
+
+    if st.session_state.reset_imprevisto: 
+        st.session_state.m_im = 0
+        st.session_state.co_im = ""
+        st.session_state.reset_imprevisto = False 
     with st.form("frm_imp"):
         c1, c2 = st.columns(2)
-        f_im   = c1.date_input("Fecha", value=hoy, key="im_f")
+        f_im   = c1.date_input("Fecha", value=hoy)
         m_im   = c2.number_input("Monto (€)", min_value=0.01,
                                   value=None, placeholder="ej: 50.00",
-                                  step=10.0, key="im_m")
+                                  step=10.0, key="m_im")
         co_im  = st.text_input("Concepto", placeholder="Ej: Médico urgente",
-                               key="im_c", autocomplete="off")
+                               autocomplete="off", key="co_im")
         if st.form_submit_button("Guardar", use_container_width=True):
             if m_im is None:
                 st.error("Introduce un monto.")
@@ -307,6 +328,7 @@ def render_imprevisto_tab(sesion, hoy, mes_sel):
                 red_a = round(m_im * sesion["pct_ahorro"], 2)
                 red_o = round(m_im * sesion["pct_ocio"], 2)
                 st.success(f"Registrado. Reduce ahorro €{red_a:.2f} · ocio €{red_o:.2f}")
+                st.session_state.reset_imprevisto = True
                 st.rerun()
 
 
@@ -315,6 +337,14 @@ def render_casa_tab(sesion, hoy, mes_sel):
     """Fragmento de gasto fijo aislado para evitar recargar el resumen global."""
     st.subheader("Gastos fijos")
     st.caption("Arriendo, luz, agua, internet... Elige la categoría del previsto.")
+
+    if "reset_casa" not in st.session_state:
+        st.session_state.reset_casa = False
+
+    if st.session_state.reset_casa: 
+        st.session_state.m_ca = 0
+        st.session_state.co_ca = ""
+        st.session_state.reset_casa = False 
 
     fijos_cfg  = obtener_gastos_fijos(sesion["user_id"])
     estims_cfg = obtener_estimaciones(sesion["user_id"])
@@ -326,13 +356,13 @@ def render_casa_tab(sesion, hoy, mes_sel):
 
     with st.form("frm_cas"):
         c1, c2 = st.columns(2)
-        f_ca   = c1.date_input("Fecha", value=hoy, key="ca_f")
+        f_ca   = c1.date_input("Fecha", value=hoy)
         m_ca   = c2.number_input("Monto (€)", min_value=0.01,
                                   value=None, placeholder="ej: 400.00",
-                                  step=10.0, key="ca_m")
+                                  step=10.0, key="m_ca")
         co_ca  = st.text_input("Concepto", placeholder="Ej: Factura luz",
-                               key="ca_c", autocomplete="off")
-        cat_ca = st.selectbox("Categoría prevista", cats_casa, key="ca_cat")
+                               autocomplete="off", key="co_ca")
+        cat_ca = st.selectbox("Categoría prevista", cats_casa)
         if st.form_submit_button("Guardar", use_container_width=True):
             if m_ca is None:
                 st.error("Introduce un monto.")
@@ -343,6 +373,7 @@ def render_casa_tab(sesion, hoy, mes_sel):
                     sesion["user_id"], str(f_ca), f"{cat_ca}: {co_ca}", m_ca, False
                 )
                 st.success(f"Gasto fijo registrado en '{cat_ca}'.")
+                st.session_state.reset_casa = True
                 st.rerun()
 
 
@@ -350,6 +381,9 @@ sesion = obtener_sesion()
 hoy = date.today()
 with st.sidebar:
     mes_sel, cerrado, anio_sel = render_sidebar(sesion, hoy)
+
+dashboard = obtener_dashboard_contexto(sesion["user_id"], mes_sel, int(anio_sel))
+d_mes = dashboard["mes"]
 
 
 # ─────────────────────────────────────────
@@ -367,12 +401,12 @@ tab_res, tab_ing, tab_his, tab_cie, tab_cfg = st.tabs([
 
 with tab_res:
     st.header(f"Resumen — {mes_sel}")
-    d = calcular_mes(sesion["user_id"], mes_sel)
+    d = d_mes
 
     st.subheader("Estado del mes")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("💵 Ingresos",       f"€{d['ing_total']:,.2f}")
-    c2.metric("📦 Gastos fijos €",   f"€{d['total_previstos']:,.2f}")
+    c2.metric("📦 Gastos del Mes",   f"€{d['total_casa_gastado'] + d['total_ocio_gastado'] + d['total_imprevistos']:,.2f}")
     c3.metric("💾 Ahorro mensual",  f"€{d['ahorro_real']:,.2f}")
     c4.metric("🎉 Ocio disponible", f"€{d['ocio_disponible']:,.2f}")
 
@@ -438,14 +472,14 @@ with tab_res:
     st.divider()
 
     st.subheader("📅 Histórico del año")
-    hist = historico_anual(sesion["user_id"], int(anio_sel))
+    hist = dashboard["hist"]
     if hist:
         st.dataframe(
             hist, hide_index=True, use_container_width=True,
             column_config={
                 "mes":         "Mes",
                 "ingresos":    st.column_config.NumberColumn("Ingresos €",    format="€%.2f"),
-                "previstos":   st.column_config.NumberColumn("Gastos fijos €",   format="€%.2f"),
+                "previstos":   st.column_config.NumberColumn("Gastos del mes €",   format="€%.2f"),
                 "imprevistos": st.column_config.NumberColumn("Imprevistos €", format="€%.2f"),
                 "ocio_gast":   st.column_config.NumberColumn("Ocio gastado €",format="€%.2f"),
                 "ahorro":      st.column_config.NumberColumn("Ahorro €",      format="€%.2f"),
@@ -471,7 +505,7 @@ with tab_ing:
 
         # ── Ingresos ─────────────────────
         with sub1:
-            render_ingreso_tab(sesion, hoy, mes_sel)
+            render_ingreso_tab(sesion, hoy, d_mes)
 
         # ── Ocio ─────────────────────────
         with sub2:
@@ -498,33 +532,33 @@ with tab_his:
     ])
 
     with sh1:
-        items = obtener_ingresos(sesion["user_id"], mes_sel)
+        items = dashboard["ingresos"]
         if items:
             for it in items:
                 fila_editable({**it, "categoria": it.get("tipo", "")}, "ingreso", "ing")
-            total = total_ingresos(sesion["user_id"], mes_sel)
+            total = dashboard["totales_historial"]["ingresos"]
             st.markdown(f"**Total: €{total:.2f}**")
         else:
             st.info("Sin ingresos este mes.")
 
     with sh2:
-        items = obtener_gastos_generales(sesion["user_id"], mes_sel)
+        items = dashboard["gastos_ocio"]
         if items:
             for it in items:
                 fila_editable(it, "general", "oc")
-            total = db.total_gastos_generales(sesion["user_id"], mes_sel)
+            total = dashboard["totales_historial"]["ocio"]
             st.markdown(f"**Total ocio: €{total:.2f}**")
         else:
             st.info("Sin gastos de ocio este mes.")
 
     with sh3:
-        imp = obtener_gastos_importantes(sesion["user_id"], mes_sel)
-        cas = obtener_gastos_casa(sesion["user_id"], mes_sel)
+        imp = d["gastos_imp_lista"]
+        cas = d["gastos_casa_lista"]
         if imp:
             st.caption("⚠️ Imprevistos importantes")
             for it in imp:
                 fila_editable(it, "importante", "im")
-            st.markdown(f"**Total imprevistos: €{db.total_gastos_importantes(sesion['user_id'], mes_sel):.2f}**")
+            st.markdown(f"**Total imprevistos: €{dashboard['totales_historial']['imprevistos']:.2f}**")
         if cas:
             st.caption("🏠 Gastos fijos")
             for it in cas:
@@ -533,27 +567,15 @@ with tab_his:
                      if ":" in it["concepto"] else "—"},
                     "casa", "ca"
                 )
-            st.markdown(f"**Total gastos fijos: €{db.total_gastos_casa(sesion['user_id'], mes_sel):.2f}**")
+            st.markdown(f"**Total gastos fijos: €{dashboard['totales_historial']['casa']:.2f}**")
         if not imp and not cas:
             st.info("Sin imprevistos ni gastos fijos este mes.")
 
     with sh4:
-        todos = []
-        for it in obtener_ingresos(sesion["user_id"], mes_sel):
-            todos.append({"fecha": it["fecha"], "tipo": "Ingreso",
-                          "concepto": it["concepto"], "monto": it["monto"]})
-        for it in obtener_gastos_generales(sesion["user_id"], mes_sel):
-            todos.append({"fecha": it["fecha"], "tipo": "Ocio",
-                          "concepto": it["concepto"], "monto": -it["monto"]})
-        for it in obtener_gastos_importantes(sesion["user_id"], mes_sel):
-            todos.append({"fecha": it["fecha"], "tipo": "Imprevisto",
-                          "concepto": it["concepto"], "monto": -it["monto"]})
-        for it in obtener_gastos_casa(sesion["user_id"], mes_sel):
-            todos.append({"fecha": it["fecha"], "tipo": "Gastos fijos",
-                          "concepto": it["concepto"], "monto": -it["monto"]})
+        todos = dashboard["todos"]
         if todos:
             st.dataframe(
-                sorted(todos, key=lambda x: x["fecha"]),
+                todos,
                 hide_index=True, use_container_width=True,
                 column_config={
                     "fecha":    st.column_config.DateColumn("Fecha"),
@@ -575,7 +597,7 @@ with tab_cie:
 
     if cerrado:
         st.success(f"✅ El mes {mes_sel} está cerrado.")
-        d_ro = calcular_mes(sesion["user_id"], mes_sel)
+        d_ro = d_mes
         c1, c2, c3 = st.columns(3)
         c1.metric("Ingresos",       f"€{d_ro['ing_total']:.2f}")
         c2.metric("Ahorro mensual", f"€{d_ro['ahorro_real']:.2f}")
@@ -587,7 +609,7 @@ with tab_cie:
             st.success("Mes desbloqueado.")
             st.rerun()
     else:
-        d_cie = calcular_mes(sesion["user_id"], mes_sel)
+        d_cie = d_mes
 
         st.subheader("Resumen antes de cerrar")
         c1, c2, c3, c4 = st.columns(4)

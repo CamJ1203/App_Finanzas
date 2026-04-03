@@ -211,7 +211,7 @@ def render_sidebar(sesion, hoy):
     pct_a = int(sesion["pct_ahorro"] * 100)
     st.caption(f"Ahorro: **{pct_a}%** · Ocio: **{100 - pct_a}%**")
     st.divider()
-    if st.button("🚪 Cerrar sesión", use_container_width=True):
+    if st.button("🚪 Cerrar sesión", width="stretch"):
         cerrar_sesion()
 
     return mes_sel, cerrado, anio_sel
@@ -239,7 +239,7 @@ def render_ingreso_tab(sesion, hoy, d_prev):
                                   value=None, placeholder="ej: 1200.00", step=50.0, key="m_ing")
         co_ing = st.text_input("Concepto", placeholder="Ej: Sueldo marzo",
                                autocomplete="off", key="co_ing")
-        if st.form_submit_button("Guardar", use_container_width=True):
+        if st.form_submit_button("Guardar", width="stretch"):
             if m_ing is None:
                 st.error("Introduce un monto.")
             elif not co_ing:
@@ -285,7 +285,7 @@ def render_ocio_tab(sesion, hoy, mes_sel):
                                   step=5.0, key="m_oc")
         co_oc  = st.text_input("Concepto", placeholder="Ej: Camiseta",
                                autocomplete="off", key="co_oc")
-        if st.form_submit_button("Guardar", use_container_width=True):
+        if st.form_submit_button("Guardar", width="stretch"):
             if m_oc is None:
                 st.error("Introduce un monto.")
             elif not co_oc:
@@ -318,7 +318,7 @@ def render_imprevisto_tab(sesion, hoy, mes_sel):
                                   step=10.0, key="m_im")
         co_im  = st.text_input("Concepto", placeholder="Ej: Médico urgente",
                                autocomplete="off", key="co_im")
-        if st.form_submit_button("Guardar", use_container_width=True):
+        if st.form_submit_button("Guardar", width="stretch"):
             if m_im is None:
                 st.error("Introduce un monto.")
             elif not co_im:
@@ -363,7 +363,7 @@ def render_casa_tab(sesion, hoy, mes_sel):
         co_ca  = st.text_input("Concepto", placeholder="Ej: Factura luz",
                                autocomplete="off", key="co_ca")
         cat_ca = st.selectbox("Categoría prevista", cats_casa)
-        if st.form_submit_button("Guardar", use_container_width=True):
+        if st.form_submit_button("Guardar", width="stretch"):
             if m_ca is None:
                 st.error("Introduce un monto.")
             elif not co_ca:
@@ -456,7 +456,7 @@ with tab_res:
                 "Estado":     "✅ Dentro" if diferencia >= 0 else "⚠️ Excedido",
             })
 
-        st.dataframe(filas_comp, hide_index=True, use_container_width=True)
+        st.dataframe(filas_comp, hide_index=True, width="stretch")
 
         total_gastado_casa = sum(gastado_por_cat.values())
         diferencia_plan    = round(d["total_previstos"] - total_gastado_casa, 2)
@@ -475,7 +475,7 @@ with tab_res:
     hist = dashboard["hist"]
     if hist:
         st.dataframe(
-            hist, hide_index=True, use_container_width=True,
+            hist, hide_index=True, width="stretch",
             column_config={
                 "mes":         "Mes",
                 "ingresos":    st.column_config.NumberColumn("Ingresos €",    format="€%.2f"),
@@ -576,7 +576,7 @@ with tab_his:
         if todos:
             st.dataframe(
                 todos,
-                hide_index=True, use_container_width=True,
+                hide_index=True, width="stretch",
                 column_config={
                     "fecha":    st.column_config.DateColumn("Fecha"),
                     "tipo":     "Tipo",
@@ -649,7 +649,7 @@ with tab_cie:
             st.caption("Sin sobrante de previstos este mes.")
 
         st.divider()
-        if st.button("✅ Confirmar y cerrar el mes", type="primary", use_container_width=True):
+        if st.button("✅ Confirmar y cerrar el mes", type="primary", width="stretch"):
             guardar_cierre(sesion["user_id"], mes_sel, ahorro_extra, ocio_extra)
             st.success(f"✅ Mes cerrado. Ahorro: **€{d_cie['ahorro_real'] + ahorro_extra:.2f}**")
             st.balloons()
@@ -675,7 +675,7 @@ with tab_cfg:
         c1, c2     = st.columns(2)
         c1.metric("Ahorro", f"{nuevo_pct}%")
         c2.metric("Ocio",   f"{100 - nuevo_pct}%")
-        if st.button("Guardar", use_container_width=True):
+        if st.button("Guardar", width="stretch"):
             if actualizar_pct_ahorro(sesion["user_id"], nuevo_pct / 100):
                 st.session_state["pct_ahorro"] = nuevo_pct / 100
                 st.session_state["pct_ocio"]   = round(1 - nuevo_pct / 100, 2)
@@ -698,7 +698,7 @@ with tab_cfg:
                                     autocomplete="off")
             mo_f   = c2.number_input("Monto (€)", min_value=0.01,
                                       value=None, placeholder="ej: 600.00", step=10.0)
-            if st.form_submit_button("Agregar", use_container_width=True):
+            if st.form_submit_button("Agregar", width="stretch"):
                 if mo_f is None:
                     st.error("Introduce un monto.")
                 elif cn_f:
@@ -721,7 +721,7 @@ with tab_cfg:
                                     autocomplete="off")
             mo_e   = c2.number_input("Promedio (€)", min_value=0.01,
                                       value=None, placeholder="ej: 200.00", step=10.0)
-            if st.form_submit_button("Agregar", use_container_width=True):
+            if st.form_submit_button("Agregar", width="stretch"):
                 if mo_e is None:
                     st.error("Introduce un monto.")
                 elif cn_e:
@@ -747,7 +747,7 @@ with tab_cfg:
                                       value=None, placeholder="ej: 600.00", step=50.0)
             if mo_an:
                 st.caption(f"Reserva mensual: **€{mo_an / 12:.2f}**")
-            if st.form_submit_button("Agregar", use_container_width=True):
+            if st.form_submit_button("Agregar", width="stretch"):
                 if mo_an is None:
                     st.error("Introduce un monto.")
                 elif cn_p:

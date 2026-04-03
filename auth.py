@@ -182,7 +182,7 @@ def _formulario_login():
             value=True,
             help=f"Tu sesión quedará guardada durante {DIAS_SESION} días."
         )
-        btn = st.form_submit_button("Entrar", use_container_width=True)
+        btn = st.form_submit_button("Entrar", width="stretch")
 
     if btn:
         if not email or not password:
@@ -222,7 +222,7 @@ def _formulario_registro():
             min_value=10, max_value=90, value=70, step=5, format="%d%%"
         )
         recordar = st.checkbox("Mantener sesión abierta en este dispositivo", value=True)
-        btn      = st.form_submit_button("Crear cuenta", use_container_width=True)
+        btn      = st.form_submit_button("Crear cuenta", width="stretch")
 
     st.caption(f"Ahorro: **{pct_ahorro}%** · Ocio: **{100-pct_ahorro}%**")
 
@@ -273,7 +273,7 @@ def widget_pct_ahorro():
     c1.metric("Ahorro", f"{nuevo_pct}%")
     c2.metric("Ocio",   f"{100-nuevo_pct}%")
 
-    if st.button("Guardar cambio", use_container_width=True):
+    if st.button("Guardar cambio", width="stretch"):
         exito = actualizar_pct_ahorro(sesion["user_id"], nuevo_pct / 100)
         if exito:
             st.session_state["pct_ahorro"] = nuevo_pct / 100

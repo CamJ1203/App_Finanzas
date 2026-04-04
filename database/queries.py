@@ -1,6 +1,6 @@
 import streamlit as st
 from .db_core import get_db
-from .db_plazos import obtener_plazos
+from .db_config import obtener_plazos
 
 
 def _build_date_range(anio: int | None) -> tuple[str | None, str | None]:

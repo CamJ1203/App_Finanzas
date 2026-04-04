@@ -11,6 +11,14 @@ from database import (
     obtener_pct_ahorro,
     get_db,
 )
+from i18n import (
+    t,
+    get_language,
+    set_language,
+    clear_language_override,
+    language_options,
+    language_label,
+)
 
 # ─────────────────────────────────────────
 # CLAVE SECRETA
@@ -160,11 +168,26 @@ def pantalla_auth():
         st.rerun()
         return
 
-    st.title("💰 Mis Finanzas")
-    st.caption("Gestiona tu dinero con inteligencia")
+    c_lang_1, c_lang_2, c_lang_3 = st.columns([2, 1, 1])
+    selected_lang = c_lang_1.selectbox(
+        "Language",
+        language_options(),
+        index=language_options().index(get_language()),
+        format_func=language_label,
+        key="auth_language_select",
+    )
+    if c_lang_2.button("Apply", width="stretch"):
+        set_language(selected_lang)
+        st.rerun()
+    if c_lang_3.button("Auto", width="stretch"):
+        clear_language_override()
+        st.rerun()
+
+    st.title(f"💰 {t('Mis Finanzas')}")
+    st.caption(t("Gestiona tu dinero con inteligencia"))
     st.divider()
 
-    tab_login, tab_registro = st.tabs(["Iniciar sesión", "Crear cuenta"])
+    tab_login, tab_registro = st.tabs([t("Iniciar sesión"), t("Crear cuenta")])
     with tab_login:
         _formulario_login()
     with tab_registro:
@@ -172,29 +195,29 @@ def pantalla_auth():
 
 
 def _formulario_login():
-    st.subheader("Bienvenido de nuevo")
+    st.subheader(t("Bienvenido de nuevo"))
 
     with st.form("form_login"):
-        email    = st.text_input("Email", placeholder="tu@email.com")
-        password = st.text_input("Contraseña", type="password")
+        email = st.text_input(t("Email"), placeholder="tu@email.com")
+        password = st.text_input(t("Contraseña"), type="password")
         recordar = st.checkbox(
-            "Mantener sesión abierta en este dispositivo",
+            t("Mantener sesión abierta en este dispositivo"),
             value=True,
-            help=f"Tu sesión quedará guardada durante {DIAS_SESION} días."
+            help=t("Tu sesión quedará guardada durante {days} días.", days=DIAS_SESION)
         )
-        btn = st.form_submit_button("Entrar", width="stretch")
+        btn = st.form_submit_button(t("Entrar"), width="stretch")
 
     if btn:
         if not email or not password:
-            st.error("Completa todos los campos.")
+            st.error(t("Completa todos los campos."))
             return
 
         usuario = obtener_usuario(email.strip().lower())
         if usuario is None:
-            st.error("No existe una cuenta con ese email.")
+            st.error(t("No existe una cuenta con ese email."))
             return
         if not _verificar(password, usuario["password"]):
-            st.error("Contraseña incorrecta.")
+            st.error(t("Contraseña incorrecta."))
             return
 
         _iniciar_sesion(usuario)
@@ -205,36 +228,36 @@ def _formulario_login():
         else:
             st.query_params.clear()
 
-        st.success(f"Bienvenido, {usuario['nombre']}!")
+        st.success(t("Bienvenido, {name}!", name=usuario["nombre"]))
         st.rerun()
 
 
 def _formulario_registro():
-    st.subheader("Crea tu cuenta")
+    st.subheader(t("Crea tu cuenta"))
 
     with st.form("form_registro"):
-        nombre        = st.text_input("Nombre", placeholder="Camilo")
-        email         = st.text_input("Email", placeholder="tu@email.com")
-        password      = st.text_input("Contraseña", type="password")
-        password_conf = st.text_input("Confirmar contraseña", type="password")
-        pct_ahorro    = st.slider(
-            "¿Qué % quieres ahorrar?",
+        nombre = st.text_input(t("Nombre"), placeholder="Camilo")
+        email = st.text_input(t("Email"), placeholder="tu@email.com")
+        password = st.text_input(t("Contraseña"), type="password")
+        password_conf = st.text_input(t("Confirmar contraseña"), type="password")
+        pct_ahorro = st.slider(
+            t("¿Qué % quieres ahorrar?"),
             min_value=10, max_value=90, value=70, step=5, format="%d%%"
         )
-        recordar = st.checkbox("Mantener sesión abierta en este dispositivo", value=True)
-        btn      = st.form_submit_button("Crear cuenta", width="stretch")
+        recordar = st.checkbox(t("Mantener sesión abierta en este dispositivo"), value=True)
+        btn = st.form_submit_button(t("Crear cuenta"), width="stretch")
 
-    st.caption(f"Ahorro: **{pct_ahorro}%** · Ocio: **{100-pct_ahorro}%**")
+    st.caption(t("Ahorro: **{save}%** · Ocio: **{fun}%**", save=pct_ahorro, fun=100 - pct_ahorro))
 
     if btn:
         if not nombre or not email or not password:
-            st.error("Completa todos los campos.")
+            st.error(t("Completa todos los campos."))
             return
         if password != password_conf:
-            st.error("Las contraseñas no coinciden.")
+            st.error(t("Las contraseñas no coinciden."))
             return
         if len(password) < 6:
-            st.error("La contraseña debe tener al menos 6 caracteres.")
+            st.error(t("La contraseña debe tener al menos 6 caracteres."))
             return
 
         exito = crear_usuario(
@@ -243,7 +266,7 @@ def _formulario_registro():
             password_hash=_hash(password),
         )
         if not exito:
-            st.error("Ese email ya tiene una cuenta registrada.")
+            st.error(t("Ese email ya tiene una cuenta registrada."))
             return
 
         usuario = obtener_usuario(email.strip().lower())
@@ -253,7 +276,7 @@ def _formulario_registro():
         if recordar:
             st.query_params["token"] = _crear_token(usuario["id"])
 
-        st.success(f"Cuenta creada. Bienvenido, {nombre}!")
+        st.success(t("Cuenta creada. Bienvenido, {name}!", name=nombre))
         st.rerun()
 
 
@@ -265,19 +288,19 @@ def widget_pct_ahorro():
     sesion     = obtener_sesion()
     pct_actual = int(sesion["pct_ahorro"] * 100)
 
-    st.subheader("Distribución del remanente")
-    st.caption("Se aplica sobre el remanente después de gastos previstos.")
+    st.subheader(t("Distribución del remanente"))
+    st.caption(t("Se aplica sobre el remanente después de gastos previstos."))
 
-    nuevo_pct = st.slider("% de ahorro", 10, 90, pct_actual, step=5, format="%d%%")
+    nuevo_pct = st.slider(t("% de ahorro"), 10, 90, pct_actual, step=5, format="%d%%")
     c1, c2    = st.columns(2)
-    c1.metric("Ahorro", f"{nuevo_pct}%")
-    c2.metric("Ocio",   f"{100-nuevo_pct}%")
+    c1.metric(t("Ahorro"), f"{nuevo_pct}%")
+    c2.metric(t("Ocio"),   f"{100-nuevo_pct}%")
 
-    if st.button("Guardar cambio", width="stretch"):
+    if st.button(t("Guardar cambio"), width="stretch"):
         exito = actualizar_pct_ahorro(sesion["user_id"], nuevo_pct / 100)
         if exito:
             st.session_state["pct_ahorro"] = nuevo_pct / 100
             st.session_state["pct_ocio"]   = round(1 - nuevo_pct / 100, 2)
-            st.success("Porcentaje actualizado.")
+            st.success(t("Porcentaje actualizado."))
         else:
-            st.error("Valor inválido.")
+            st.error(t("Valor inválido."))

@@ -258,13 +258,15 @@ def crear_tablas():
             )
         """)
         conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS config_provisiones (
+            CREATE TABLE IF NOT EXISTS config_plazos (
                 id          {_integer_pk()},
                 user_id     INTEGER NOT NULL,
                 concepto    TEXT NOT NULL,
-                monto_anual REAL NOT NULL,
+                monto_total REAL NOT NULL,
+                meses       INTEGER NOT NULL CHECK(meses > 0),
+                inicio_mes  TEXT NOT NULL,
                 activo      BOOLEAN DEFAULT {_boolean_default(True)},
-                UNIQUE(user_id, concepto),
+                UNIQUE(user_id, concepto, inicio_mes),
                 FOREIGN KEY (user_id) REFERENCES usuarios(id)
             )
         """)
@@ -302,7 +304,7 @@ def crear_tablas():
         conn.execute("CREATE INDEX IF NOT EXISTS idx_gastos_importantes_user_creado_en ON gastos_importantes(user_id, creado_en)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_config_gastos_fijos_user_activo ON config_gastos_fijos(user_id, activo)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_config_estimaciones_user_activo ON config_estimaciones(user_id, activo)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_config_provisiones_user_activo ON config_provisiones(user_id, activo)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_config_plazos_user_activo ON config_plazos(user_id, activo)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_cierre_mes_user_mes ON cierre_mes(user_id, mes)")
 
 

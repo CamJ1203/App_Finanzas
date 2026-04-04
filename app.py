@@ -28,7 +28,7 @@ from database import (
     total_ingresos, total_sueldo, total_extras,
     guardar_gasto_fijo, obtener_gastos_fijos, desactivar_gasto_fijo,
     guardar_estimacion, obtener_estimaciones, desactivar_estimacion,
-    guardar_provision, obtener_provisiones, desactivar_provision,
+    guardar_plazo, obtener_plazos, desactivar_plazo,
     actualizar_pct_ahorro,
     obtener_metricas_agrupadas, obtener_totales_configurables,
 )
@@ -210,7 +210,7 @@ def render_sidebar(sesion, hoy):
         clear_language_override()
         st.rerun()
 
-    st.caption(f"Detected browser language: `{getattr(st.context, 'locale', 'unknown') or 'unknown'}`")
+    #st.caption(f"Detected browser language: `{getattr(st.context, 'locale', 'unknown') or 'unknown'}`")
     st.divider()
 
     st.caption(t("Selecciona el mes activo"))
@@ -244,6 +244,26 @@ def render_sidebar(sesion, hoy):
         cerrar_sesion()
 
     return mes_sel, cerrado, anio_sel
+
+
+def selector_mes_anio(prefijo: str, anio_inicial: int, mes_inicial: int):
+    col_mes, col_anio = st.columns(2)
+    mes = col_mes.selectbox(
+        t("Mes"),
+        list(range(1, 13)),
+        index=max(0, min(11, mes_inicial - 1)),
+        format_func=month_abbr,
+        key=f"{prefijo}_mes",
+    )
+    anio = col_anio.number_input(
+        t("Año"),
+        min_value=2020,
+        max_value=2035,
+        value=anio_inicial,
+        step=1,
+        key=f"{prefijo}_anio",
+    )
+    return f"{int(anio)}-{int(mes):02d}"
 
 
 @fragment
@@ -375,9 +395,14 @@ def render_casa_tab(sesion, hoy, mes_sel):
         st.session_state.co_ca = ""
         st.session_state.reset_casa = False 
 
-    fijos_cfg  = obtener_gastos_fijos(sesion["user_id"])
+    fijos_cfg = obtener_gastos_fijos(sesion["user_id"])
     estims_cfg = obtener_estimaciones(sesion["user_id"])
-    cats_casa  = [f["concepto"] for f in fijos_cfg] + [e["concepto"] for e in estims_cfg]
+    plazos_cfg = obtener_plazos(sesion["user_id"], mes_sel)
+    cats_casa = (
+        [f["concepto"] for f in fijos_cfg]
+        + [e["concepto"] for e in estims_cfg]
+        + [p["concepto"] for p in plazos_cfg]
+    )
     if not cats_casa:
         cats_casa = [t("Otro")]
     else:
@@ -480,8 +505,8 @@ with tab_res:
     for e in d["detalle_estim"]:
         filas_plan.append({"Concepto": e["concepto"], "Tipo": t("Estimación"),
                            "Previsto": e["promedio"]})
-    for p in d["detalle_provis"]:
-        filas_plan.append({"Concepto": p["concepto"], "Tipo": t("Provisión /12"),
+    for p in d["detalle_plazos"]:
+        filas_plan.append({"Concepto": p["concepto"], "Tipo": t("Plazo"),
                            "Previsto": p["cuota_mes"]})
 
     if filas_plan:
@@ -517,7 +542,7 @@ with tab_res:
                         else t("€{amount:.2f} excedido", amount=abs(diferencia_plan)),
                   delta_color="normal" if diferencia_plan >= 0 else "inverse")
     else:
-        st.info(t("No tienes gastos configurados. Ve a ⚙️ Config para agregar fijos, estimaciones o provisiones."))
+        st.info(t("No tienes gastos configurados. Ve a ⚙️ Config para agregar fijos, estimaciones o plazos."))
 
     st.divider()
 
@@ -715,7 +740,7 @@ with tab_cfg:
     st.header(t("Configuración"))
 
     cfg1, cfg2, cfg3, cfg4 = st.tabs([
-        t("💰 % Ahorro"), t("🏠 Gastos fijos"), t("🛒 Estimaciones"), t("📅 Provisiones")
+        t("💰 % Ahorro"), t("🏠 Gastos fijos"), t("🛒 Estimaciones"), t("📅 Plazos")
     ])
 
     with cfg1:
@@ -780,27 +805,40 @@ with tab_cfg:
                     st.rerun()
 
     with cfg4:
-        st.subheader(t("Provisiones anuales"))
-        st.caption(t("Seguro, ITV... se divide entre 12 y se reserva cada mes."))
-        for p in obtener_provisiones(sesion["user_id"]):
-            c1, c2, c3, c4 = st.columns([3, 2, 2, 1])
+        st.subheader(t("Plazos"))
+        st.caption(t("Pagos divididos en varios meses. Cuando terminan, desaparecen del plan del mes."))
+        for p in obtener_plazos(sesion["user_id"]):
+            c1, c2, c3, c4, c5 = st.columns([3, 2, 2, 2, 1])
             c1.write(p["concepto"])
-            c2.write(f"€{p['monto_anual']:.2f}/año")
-            c3.write(f"€{p['cuota_mes']:.2f}/mes")
-            if c4.button("🗑️", key=f"dp_{p['id']}", help=t("Borrar")):
-                desactivar_provision(sesion["user_id"], p["id"])
+            c2.write(f"€{p['monto_total']:.2f}")
+            c3.write(f"{p['meses']} {t('meses')}")
+            c4.write(f"{p['inicio_mes']} → {p['mes_final']}")
+            if c5.button("🗑️", key=f"dpl_{p['id']}", help=t("Borrar")):
+                desactivar_plazo(sesion["user_id"], p["id"])
                 st.rerun()
-        with st.form("frm_prov"):
+        with st.form("frm_plazo"):
             c1, c2 = st.columns(2)
-            cn_p   = c1.text_input(t("Concepto"), placeholder="Seguro carro",
-                                    autocomplete="off")
-            mo_an  = c2.number_input(t("Monto anual (€)"), min_value=0.01,
-                                      value=None, placeholder="ej: 600.00", step=50.0)
-            if mo_an:
-                st.caption(t("Reserva mensual: **€{amount:.2f}**", amount=mo_an / 12))
+            cn_p = c1.text_input(t("Concepto"), placeholder="Portatil", autocomplete="off")
+            mo_total = c2.number_input(
+                t("Monto total (€)"),
+                min_value=0.01,
+                value=None,
+                placeholder="ej: 1200.00",
+                step=50.0,
+            )
+            c3, c4 = st.columns(2)
+            meses_plazo = c3.number_input(t("Cantidad de meses"), min_value=1, max_value=60, value=12, step=1)
+            st.caption(
+                t("Elige el mes de inicio de los pagos periodicos para que se añada automáticamente al plan de cada mes.")
+            )
+            inicio_mes = selector_mes_anio("cfg_plazo_inicio", hoy.year, hoy.month)
+            if mo_total:
+                st.caption(
+                    t("Cuota mensual del plazo: **€{amount:.2f}**", amount=round(mo_total / meses_plazo, 2))
+                )
             if st.form_submit_button(t("Agregar"), width="stretch"):
-                if mo_an is None:
+                if mo_total is None:
                     st.error(t("Introduce un monto."))
                 elif cn_p:
-                    guardar_provision(sesion["user_id"], cn_p, mo_an)
+                    guardar_plazo(sesion["user_id"], cn_p, mo_total, int(meses_plazo), inicio_mes)
                     st.rerun()

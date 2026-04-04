@@ -19,7 +19,9 @@ from .db_gastos import (
 from .db_config import (
     guardar_gasto_fijo,   obtener_gastos_fijos,   desactivar_gasto_fijo,
     guardar_estimacion,   obtener_estimaciones,    desactivar_estimacion,
-    guardar_provision,    obtener_provisiones,     desactivar_provision,
+)
+from .db_plazos import (
+    guardar_plazo, obtener_plazos, desactivar_plazo,
 )
 from .queries import (
     obtener_metricas_agrupadas,

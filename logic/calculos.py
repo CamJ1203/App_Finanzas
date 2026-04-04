@@ -6,7 +6,7 @@ from database import (
     obtener_ingresos,
     obtener_gastos_fijos,
     obtener_estimaciones,
-    obtener_provisiones,
+    obtener_plazos,
     obtener_gastos_importantes,
     obtener_gastos_casa,
     obtener_gastos_generales,
@@ -29,14 +29,14 @@ def _row_for_mes(mes: str, metricas: dict[str, dict[str, float]]) -> dict[str, f
 def calcular_mes(user_id: int, mes: str) -> dict[str, float]:
     anio = int(mes.split("-", 1)[0])
     metricas = obtener_metricas_agrupadas(user_id, anio=anio)
-    config = obtener_totales_configurables(user_id)
+    config = obtener_totales_configurables(user_id, mes)
     totals = _row_for_mes(mes, metricas)
 
     ingresos = totals["ingresos"]
     ing_sueldo = totals.get("ing_sueldo", 0.0)
     ing_extras = totals.get("ing_extras", 0.0)
     total_previstos = round(
-        config["fijos"] + config["estimaciones"] + config["provisiones"], 2
+        config["fijos"] + config["estimaciones"] + config["plazos"], 2
     )
     remanente = round(int(ingresos - total_previstos), 2)
 
@@ -59,7 +59,7 @@ def calcular_mes(user_id: int, mes: str) -> dict[str, float]:
         "total_previstos": total_previstos,
         "detalle_fijos": obtener_gastos_fijos(user_id),
         "detalle_estim": obtener_estimaciones(user_id),
-        "detalle_provis": obtener_provisiones(user_id),
+        "detalle_plazos": obtener_plazos(user_id, mes),
         "remanente": remanente,
         "pct_ahorro": pct_ahorro,
         "pct_ocio": pct_ocio,

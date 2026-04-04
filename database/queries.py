@@ -1,5 +1,6 @@
 import streamlit as st
 from .db_core import get_db
+from .db_plazos import obtener_plazos
 
 
 def _build_date_range(anio: int | None) -> tuple[str | None, str | None]:
@@ -97,7 +98,7 @@ def obtener_metricas_agrupadas(user_id: int, anio: int | None = None) -> dict[st
 
 
 @st.cache_data(ttl=600)
-def obtener_totales_configurables(user_id: int) -> dict[str, float]:
+def obtener_totales_configurables(user_id: int, mes: str | None = None) -> dict[str, float]:
     """Devuelve los totales mensuales de gastos configurados."""
     with get_db() as conn:
         fila_fijos = conn.execute(
@@ -108,17 +109,12 @@ def obtener_totales_configurables(user_id: int) -> dict[str, float]:
             "SELECT SUM(promedio) AS total FROM config_estimaciones WHERE user_id = ? AND activo = ?",
             (user_id, True),
         ).fetchone()
-        fila_prov = conn.execute(
-            "SELECT SUM(monto_anual) AS total FROM config_provisiones WHERE user_id = ? AND activo = ?",
-            (user_id, True),
-        ).fetchone()
-
     fijos = float((fila_fijos and next(iter(fila_fijos.values()))) or 0)
     estimaciones = float((fila_estim and next(iter(fila_estim.values()))) or 0)
-    provisiones = float((fila_prov and next(iter(fila_prov.values()))) or 0) / 12
+    plazos = round(sum(item["cuota_mes"] for item in obtener_plazos(user_id, mes)), 2) if mes else 0.0
 
     return {
         "fijos": fijos,
         "estimaciones": estimaciones,
-        "provisiones": round(provisiones, 2),
+        "plazos": plazos,
     }

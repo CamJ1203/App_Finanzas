@@ -70,39 +70,16 @@ def desactivar_estimacion(user_id, id):
 
 
 # ─────────────────────────────────────────
-# PROVISIONES
+# PROVISIONES (legado sin uso)
 # ─────────────────────────────────────────
 
-def guardar_provision(user_id, concepto, monto_anual):
-    """Crea o reactiva una provisión. Si existía desactivada la reactiva."""
-    with get_db() as conn:
-        conn.execute("""
-            INSERT INTO config_provisiones (user_id, concepto, monto_anual, activo)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(user_id, concepto) DO UPDATE SET
-                monto_anual = excluded.monto_anual,
-                activo      = excluded.activo
-        """, (user_id, concepto, monto_anual, True))
-    st.cache_data.clear()
+def guardar_provision(*_args, **_kwargs):
+    raise RuntimeError("guardar_provision ya no se usa. Usa guardar_plazo.")
 
-@st.cache_data(ttl=600)  # Cachea las provisiones anuales para uso en cálculo mensual
-def obtener_provisiones(user_id):
-    with get_db() as conn:
-        filas = conn.execute(
-            "SELECT * FROM config_provisiones WHERE user_id = ? AND activo = ?",
-            (user_id, True)
-        ).fetchall()
-    resultado = []
-    for f in filas:
-        p = dict(f)
-        p["cuota_mes"] = round(p["monto_anual"] / 12, 2)
-        resultado.append(p)
-    return resultado
 
-def desactivar_provision(user_id, id):
-    with get_db() as conn:
-        conn.execute(
-            "UPDATE config_provisiones SET activo = ? WHERE id = ? AND user_id = ?",
-            (False, id, user_id)
-        )
-    st.cache_data.clear()
+def obtener_provisiones(*_args, **_kwargs):
+    return []
+
+
+def desactivar_provision(*_args, **_kwargs):
+    return None

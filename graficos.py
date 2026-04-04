@@ -34,4 +34,4 @@ def render_torta(titulo: str, etiquetas: list[str], valores: list[float], height
         "view": {"stroke": None},
     }
 
-    st.vega_lite_chart(datos, spec, use_container_width=True, height=height)
+    st.vega_lite_chart(datos, spec, width="stretch", height=height)
